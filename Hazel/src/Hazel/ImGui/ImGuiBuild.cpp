@@ -1,5 +1,9 @@
 #include "hzpch.h"
 
+// Include necessary stb headers before imgui source
+#include <stb/stb_rect_pack.h>
+#include <stb/stb_truetype.h>
+
 #include <imgui.cpp>
 #include <imgui_draw.cpp>
 #include <imgui_tables.cpp>

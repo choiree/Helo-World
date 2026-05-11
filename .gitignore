@@ -1,20 +1,54 @@
-# Binaries
+# 编译产物 & 中间文件
 **/bin/
 bin-int/
 Intermediates/
+out/
+build/
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+Makefile
+*.obj
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.exe
+*.dll
+*.so
+*.dylib
 
-# Hazel files
+# Visual Studio 相关
+.vs/
+**/*.sln
+**/*.vcxproj
+**/*.vcxproj.filters
+**/*.vcxproj.user
+**/*.csproj
+*.suo
+*.user
+*.userosscache
+*.sdf
+*.opensdf
+*.tlog
 *.log
 
-# Visual Studio files and folder
-.vs/
-**.sln
-**.vcxproj
-**.vcxproj.filters
-**.vcxproj.user
-**.csproj
+# Hazel 项目特定文件
+*.log
+*.ini
+*.tmp
+*.bak
 
-# Directories
-Hazel/vendor/VulkanSDK
+# 第三方 SDK & 缓存
+Hazel/vendor/VulkanSDK/
 Hazelnut/assets/cache
-scripts/__pycache__
+scripts/__pycache__/
+
+# OS 垃圾文件
+.DS_Store
+Thumbs.db
+
+# 第三方库
+Hazel/vendor/msdf-atlas-gen/
+Hazel/vendor/shaderc/
+Hazel/vendor/spirv_cross/
