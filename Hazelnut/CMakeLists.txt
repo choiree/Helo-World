@@ -63,4 +63,7 @@ set_target_properties(Hazelnut PROPERTIES
     PDB_OUTPUT_DIRECTORY_DEBUG "${PROJECT_SOURCE_DIR}/../bin-int/Debug/${PROJECT_NAME}"
     PDB_OUTPUT_DIRECTORY_RELEASE "${PROJECT_SOURCE_DIR}/../bin-int/Release/${PROJECT_NAME}"
     PDB_OUTPUT_DIRECTORY_Dist "${PROJECT_SOURCE_DIR}/../bin-int/Dist/${PROJECT_NAME}"
+    
+    # 设置调试时的工作目录为 Hazelnut 项目目录（自动找到 assets 文件夹）
+    VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )

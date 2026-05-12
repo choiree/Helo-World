@@ -19,7 +19,7 @@ namespace Hazel {
 	EditorLayer::EditorLayer()
 		: Layer("EditorLayer"), m_CameraController(1280.0f / 720.0f), m_SquareColor({ 0.2f, 0.3f, 0.8f, 1.0f })
 	{
-		s_Font = Font::GetDefault();
+		//s_Font = Font::GetDefault();
 	}
 
 	void EditorLayer::OnAttach()
@@ -254,7 +254,7 @@ namespace Hazel {
 		ImGui::Begin("Settings");
 		ImGui::Checkbox("Show physics colliders", &m_ShowPhysicsColliders);
 
-		ImGui::Image((ImTextureID)s_Font->GetAtlasTexture()->GetRendererID(), { 512,512 }, {0, 1}, {1, 0});
+		// ImGui::Image((ImTextureID)s_Font->GetAtlasTexture()->GetRendererID(), { 512,512 }, {0, 1}, {1, 0}); // 暂时注释 — Font 功能未完全配置
 
 
 		ImGui::End();
@@ -376,7 +376,15 @@ namespace Hazel {
 		if (hasPlayButton)
 		{
 			Ref<Texture2D> icon = (m_SceneState == SceneState::Edit || m_SceneState == SceneState::Simulate) ? m_IconPlay : m_IconStop;
-			if (ImGui::ImageButton((ImTextureID)(uint64_t)icon->GetRendererID(), ImVec2(size, size), ImVec2(0, 0), ImVec2(1, 1), 0, ImVec4(0.0f, 0.0f, 0.0f, 0.0f), tintColor) && toolbarEnabled)
+			if (ImGui::ImageButton(
+				"##play_button",
+				(ImTextureID)(uint64_t)icon->GetRendererID(),
+				ImVec2(size, size), 
+				ImVec2(0, 0), 
+				ImVec2(1, 1),
+				ImVec4(0.0f, 0.0f, 0.0f, 0.0f),
+				tintColor
+			) && toolbarEnabled)
 			{
 				if (m_SceneState == SceneState::Edit || m_SceneState == SceneState::Simulate)
 					OnScenePlay();
@@ -391,7 +399,15 @@ namespace Hazel {
 				ImGui::SameLine();
 
 			Ref<Texture2D> icon = (m_SceneState == SceneState::Edit || m_SceneState == SceneState::Play) ? m_IconSimulate : m_IconStop;
-			if (ImGui::ImageButton((ImTextureID)(uint64_t)icon->GetRendererID(), ImVec2(size, size), ImVec2(0, 0), ImVec2(1, 1), 0, ImVec4(0.0f, 0.0f, 0.0f, 0.0f), tintColor) && toolbarEnabled)
+			if (ImGui::ImageButton(
+				"##simulate_button",
+				(ImTextureID)(uint64_t)icon->GetRendererID(),
+				ImVec2(size, size), 
+				ImVec2(0, 0), 
+				ImVec2(1, 1),
+				ImVec4(0.0f, 0.0f, 0.0f, 0.0f), 
+				tintColor
+			) && toolbarEnabled)
 			{
 				if (m_SceneState == SceneState::Edit || m_SceneState == SceneState::Play)
 					OnSceneSimulate();
@@ -405,7 +421,14 @@ namespace Hazel {
 			ImGui::SameLine();
 			{
 				Ref<Texture2D> icon = m_IconPause;
-				if (ImGui::ImageButton((ImTextureID)(uint64_t)icon->GetRendererID(), ImVec2(size, size), ImVec2(0, 0), ImVec2(1, 1), 0, ImVec4(0.0f, 0.0f, 0.0f, 0.0f), tintColor) && toolbarEnabled)
+				if (ImGui::ImageButton(
+					"##pause_button",
+					(ImTextureID)(uint64_t)icon->GetRendererID(), 
+					ImVec2(size, size),
+					ImVec2(0, 0), ImVec2(1, 1), 
+					ImVec4(0.0f, 0.0f, 0.0f, 0.0f), 
+					tintColor
+				) && toolbarEnabled)
 				{
 					m_ActiveScene->SetPaused(!isPaused);
 				}
@@ -418,7 +441,15 @@ namespace Hazel {
 				{
 					Ref<Texture2D> icon = m_IconStep;
 					bool isPaused = m_ActiveScene->IsPaused();
-					if (ImGui::ImageButton((ImTextureID)(uint64_t)icon->GetRendererID(), ImVec2(size, size), ImVec2(0, 0), ImVec2(1, 1), 0, ImVec4(0.0f, 0.0f, 0.0f, 0.0f), tintColor) && toolbarEnabled)
+					if (ImGui::ImageButton(
+						"##pause_button",
+						(ImTextureID)(uint64_t)icon->GetRendererID(), 
+						ImVec2(size, size), 
+						ImVec2(0, 0),
+						ImVec2(1, 1),
+						ImVec4(0.0f, 0.0f, 0.0f, 0.0f),
+						tintColor
+					) && toolbarEnabled)
 					{
 						m_ActiveScene->Step();
 					}
@@ -570,10 +601,8 @@ namespace Hazel {
 			// Box Colliders
 			{
 				auto view = m_ActiveScene->GetAllEntitiesWith<TransformComponent, BoxCollider2DComponent>();
-				for (auto entity : view)
+				for (auto [entity, tc, bc2d] : view.each())
 				{
-					auto [tc, bc2d] = view.get<TransformComponent, BoxCollider2DComponent>(entity);
-
 					glm::vec3 translation = tc.Translation + glm::vec3(bc2d.Offset, 0.001f);
 					glm::vec3 scale = tc.Scale * glm::vec3(bc2d.Size * 2.0f, 1.0f);
 
@@ -589,10 +618,8 @@ namespace Hazel {
 			// Circle Colliders
 			{
 				auto view = m_ActiveScene->GetAllEntitiesWith<TransformComponent, CircleCollider2DComponent>();
-				for (auto entity : view)
+				for (auto [entity, tc, cc2d] : view.each())
 				{
-					auto [tc, cc2d] = view.get<TransformComponent, CircleCollider2DComponent>(entity);
-
 					glm::vec3 translation = tc.Translation + glm::vec3(cc2d.Offset, 0.001f);
 					glm::vec3 scale = tc.Scale * glm::vec3(cc2d.Radius * 2.0f);
 

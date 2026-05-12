@@ -20,6 +20,10 @@ namespace Hazel {
 		ApplicationSpecification spec;
 		spec.Name = "Hazelnut";
 		spec.CommandLineArgs = args;
+		
+		// 设置工作目录为 Hazelnut 项目目录（自动找到 assets 文件夹）
+		std::filesystem::path exePath = __FILE__;
+		spec.WorkingDirectory = exePath.parent_path().parent_path().string();
 
 		return new Hazelnut(spec);
 	}

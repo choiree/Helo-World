@@ -1,4 +1,4 @@
-﻿cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.8)
 # 顶层项目只定义一次
 project("Hazel-App")
 
@@ -38,3 +38,8 @@ set_target_properties(Hazel-App PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
+
+# ==============================================
+# 3. 构建 Hazelnut 编辑器
+# ==============================================
+add_subdirectory("Hazelnut")
