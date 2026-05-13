@@ -34,11 +34,9 @@ namespace Hazel {
 		([&]()
 		{
 			auto view = src.view<Component>();
-			for (auto srcEntity : view)
+			for (auto [srcEntity, srcComponent] : view.each())
 			{
 				entt::entity dstEntity = enttMap.at(src.get<IDComponent>(srcEntity).ID);
-
-				auto& srcComponent = src.get<Component>(srcEntity);
 				dst.emplace_or_replace<Component>(dstEntity, srcComponent);
 			}
 		}(), ...);
@@ -78,11 +76,11 @@ namespace Hazel {
 		std::unordered_map<UUID, entt::entity> enttMap;
 
 		// Create entities in new scene
-		auto idView = srcSceneRegistry.view<IDComponent>();
-		for (auto e : idView)
+		auto idView = srcSceneRegistry.view<IDComponent, TagComponent>();
+		for (auto [e, idComp, tagComp] : idView.each())
 		{
-			UUID uuid = srcSceneRegistry.get<IDComponent>(e).ID;
-			const auto& name = srcSceneRegistry.get<TagComponent>(e).Tag;
+			UUID uuid = idComp.ID;
+			const auto& name = tagComp.Tag;
 			Entity newEntity = newScene->CreateEntityWithUUID(uuid, name);
 			enttMap[uuid] = (entt::entity)newEntity;
 		}
@@ -129,7 +127,7 @@ namespace Hazel {
 			// Instantiate all script entities
 
 			auto view = m_Registry.view<ScriptComponent>();
-			for (auto e : view)
+			for (auto [e, _] : view.each())
 			{
 				Entity entity = { e, this };
 				ScriptEngine::OnCreateEntity(entity);
@@ -164,7 +162,7 @@ namespace Hazel {
 			{
 				// C# Entity OnUpdate
 				auto view = m_Registry.view<ScriptComponent>();
-				for (auto e : view)
+				for (auto [e, _] : view.each())
 				{
 					Entity entity = { e, this };
 					ScriptEngine::OnUpdateEntity(entity, ts);
@@ -191,16 +189,11 @@ namespace Hazel {
 				b2World_Step(m_PhysicsWorldId, ts, 4);
 
 				// Retrieve transform from Box2D
-				auto view = m_Registry.view<Rigidbody2DComponent>();
-				for (auto e : view)
+				auto view = m_Registry.view<TransformComponent, Rigidbody2DComponent>();
+				for (auto [entity, transform, rb2d] : view.each())
 				{
-					Entity entity = { e, this };
-					auto& transform = entity.GetComponent<TransformComponent>();
-					auto& rb2d = entity.GetComponent<Rigidbody2DComponent>();
-
 					b2BodyId bodyId = rb2d.RuntimeBody;
 
-					// 建议加上有效性检查，避免访问已销毁的物体
 					if (!b2Body_IsValid(bodyId))
 						continue;
 
@@ -237,10 +230,8 @@ namespace Hazel {
 			// Draw sprites
 			{
 				auto group = m_Registry.group<TransformComponent>(entt::get<SpriteRendererComponent>);
-				for (auto entity : group)
+				for (auto [entity, transform, sprite] : group.each())
 				{
-					auto [transform, sprite] = group.get<TransformComponent, SpriteRendererComponent>(entity);
-
 					Renderer2D::DrawSprite(transform.GetTransform(), sprite, (int)entity);
 				}
 			}
@@ -279,22 +270,18 @@ namespace Hazel {
 				b2World_Step(m_PhysicsWorldId, ts, subStepCount);
 
 				// Retrieve transform from Box2D
-				auto view = m_Registry.view<Rigidbody2DComponent>();
-				for (auto e : view)
+				auto view = m_Registry.view<TransformComponent, Rigidbody2DComponent>();
+				for (auto [entity, transformComp, rb2dComp] : view.each())
 				{
-					Entity entity = { e, this };
-					auto& transformComp = entity.GetComponent<TransformComponent>();
-					auto& rb2dComp = entity.GetComponent<Rigidbody2DComponent>();
 					b2BodyId bodyId = rb2dComp.RuntimeBody;
 
-					const b2Vec2 position = b2Body_GetPosition(bodyId);
-					b2Transform transform = b2Body_GetTransform(bodyId);
-					b2Rot rotation = b2Body_GetRotation(bodyId);
+					if (!b2Body_IsValid(bodyId))
+						continue;
 
-					transformComp.Translation.x = position.x;
-					transformComp.Translation.y = position.y;
-					transformComp.Translation.z = atan2(transform.q.s, transform.q.c);
-					transformComp.Rotation = { rotation.c, rotation.s, 0 };
+					b2Transform bodyTransform = b2Body_GetTransform(bodyId);
+					transformComp.Translation.x = bodyTransform.p.x;
+					transformComp.Translation.y = bodyTransform.p.y;
+					transformComp.Rotation.z = b2Rot_GetAngle(bodyTransform.q);
 				}
 			}
 		}
@@ -319,9 +306,8 @@ namespace Hazel {
 
 		// Resize our non-FixedAspectRatio cameras
 		auto view = m_Registry.view<CameraComponent>();
-		for (auto entity : view)
+		for (auto [entity, cameraComponent] : view.each())
 		{
-			auto& cameraComponent = view.get<CameraComponent>(entity);
 			if (!cameraComponent.FixedAspectRatio)
 				cameraComponent.Camera.SetViewportSize(width, height);
 		}
@@ -330,11 +316,10 @@ namespace Hazel {
 	Entity Scene::GetPrimaryCameraEntity()
 	{
 		auto view = m_Registry.view<CameraComponent>();
-		for (auto entity : view)
+		for (auto [entity, camera] : view.each())
 		{
-			const auto& camera = view.get<CameraComponent>(entity);
 			if (camera.Primary)
-				return Entity{entity, this};
+				return Entity{ entity, this };
 		}
 		return {};
 	}
@@ -356,9 +341,8 @@ namespace Hazel {
 	Entity Scene::FindEntityByName(std::string_view name)
 	{
 		auto view = m_Registry.view<TagComponent>();
-		for (auto entity : view)
+		for (auto [entity, tc] : view.each())
 		{
-			const TagComponent& tc = view.get<TagComponent>(entity);
 			if (tc.Tag == name)
 				return Entity{ entity, this };
 		}
@@ -378,43 +362,45 @@ namespace Hazel {
 	{
 		b2WorldDef worldDef = b2DefaultWorldDef();
 		worldDef.gravity = { 0.0f, -9.8f };
-		worldDef.restitutionThreshold = 0.5f;
+		worldDef.restitutionThreshold = 0.5f;   
 		m_PhysicsWorldId = b2CreateWorld(&worldDef);
 
 		auto view = m_Registry.view<Rigidbody2DComponent>();
-		for (auto e : view)
+		for (auto [entity, rb2d] : view.each())
 		{
-			Entity entity = { e, this };
-			auto& transform = entity.GetComponent<TransformComponent>();
-			auto& rb2d = entity.GetComponent<Rigidbody2DComponent>();
+			Entity e = { entity, this };
+			auto& transform = e.GetComponent<TransformComponent>();
 
 			b2BodyDef bodyDef = b2DefaultBodyDef();
 			bodyDef.type = Utils::Rigidbody2DTypeToBox2DBody(rb2d.Type);
 			bodyDef.position = { transform.Translation.x, transform.Translation.y };
 			bodyDef.rotation = b2MakeRot(transform.Rotation.z);
+			bodyDef.motionLocks.angularZ = rb2d.FixedRotation;  
 
-			b2BodyId bodyId = b2CreateBody(m_PhysicsWorldId , &bodyDef);
-			b2Body_SetAngularVelocity(bodyId, 0.0f);
+			b2BodyId bodyId = b2CreateBody(m_PhysicsWorldId, &bodyDef);
 			rb2d.RuntimeBody = bodyId;
 
-			if (entity.HasComponent<BoxCollider2DComponent>())
+			// BoxCollider2D
+			if (e.HasComponent<BoxCollider2DComponent>())
 			{
-				auto& bc2d = entity.GetComponent<BoxCollider2DComponent>();
+				auto& bc2d = e.GetComponent<BoxCollider2DComponent>();
 
 				b2ShapeDef shapeDef = b2DefaultShapeDef();
 				shapeDef.density = bc2d.Density;
 				shapeDef.material.friction = bc2d.Friction;
 				shapeDef.material.restitution = bc2d.Restitution;
 
-				b2Polygon polygon = b2MakeBox(bc2d.Size.x * transform.Scale.x, bc2d.Size.y * transform.Scale.y);
-				b2ShapeId boxShapeId = b2CreatePolygonShape(bodyId, &shapeDef, &polygon);
+				b2Polygon polygon = b2MakeBox(bc2d.Size.x * transform.Scale.x,
+					bc2d.Size.y * transform.Scale.y);
+				polygon.centroid = { bc2d.Offset.x, bc2d.Offset.y };  
 
-				bc2d.RuntimeFixture = boxShapeId;
+				bc2d.RuntimeFixture = b2CreatePolygonShape(bodyId, &shapeDef, &polygon);
 			}
 
-			if (entity.HasComponent<CircleCollider2DComponent>())
+			// CircleCollider2D
+			if (e.HasComponent<CircleCollider2DComponent>())
 			{
-				auto& cc2d = entity.GetComponent<CircleCollider2DComponent>();
+				auto& cc2d = e.GetComponent<CircleCollider2DComponent>();
 
 				b2ShapeDef shapeDef = b2DefaultShapeDef();
 				shapeDef.density = cc2d.Density;
@@ -423,11 +409,9 @@ namespace Hazel {
 
 				b2Circle circle;
 				circle.center = { cc2d.Offset.x, cc2d.Offset.y };
-				circle.radius = cc2d.Radius;
+				circle.radius = transform.Scale.x * cc2d.Radius;   
 
-				b2ShapeId circleShapeId = b2CreateCircleShape(bodyId, &shapeDef, &circle);
-
-				cc2d.RuntimeFixture = circleShapeId;
+				cc2d.RuntimeFixture = b2CreateCircleShape(bodyId, &shapeDef, &circle);
 			}
 		}
 	}
@@ -446,10 +430,8 @@ namespace Hazel {
 		// Draw sprites
 		{
 			auto group = m_Registry.group<TransformComponent>(entt::get<SpriteRendererComponent>);
-			for (auto entity : group)
+			for (auto [entity, transform, sprite] : group.each())
 			{
-				auto [transform, sprite] = group.get<TransformComponent, SpriteRendererComponent>(entity);
-
 				Renderer2D::DrawSprite(transform.GetTransform(), sprite, (int)entity);
 			}
 		}
