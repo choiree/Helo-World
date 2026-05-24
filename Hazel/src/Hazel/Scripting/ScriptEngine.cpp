@@ -163,10 +163,24 @@ namespace Hazel {
 
 	void ScriptEngine::Init()
 	{
-		s_Data = new ScriptEngineData();
+		bool firstInit = (s_Data == nullptr);
 
-		InitMono();
-		ScriptGlue::RegisterFunctions();
+		if (firstInit)
+		{
+			s_Data = new ScriptEngineData();
+			InitMono();
+			ScriptGlue::RegisterFunctions();
+		}
+		else
+		{
+			// 切换项目时只重载程序集，Mono 运行时不能重复初始化
+			if (s_Data->AppDomain)
+			{
+				mono_domain_set(mono_get_root_domain(), false);
+				mono_domain_unload(s_Data->AppDomain);
+				s_Data->AppDomain = nullptr;
+			}
+		}
 
 		bool status = LoadAssembly("Resources/Scripts/Hazel-ScriptCore.dll");
 		if (!status)
@@ -174,7 +188,7 @@ namespace Hazel {
 			HZ_CORE_ERROR("[ScriptEngine] Could not load Hazel-ScriptCore assembly.");
 			return;
 		}
-		
+
 		auto scriptModulePath = Project::GetAssetDirectory() / Project::GetActive()->GetConfig().ScriptModulePath;
 		status = LoadAppAssembly(scriptModulePath);
 		if (!status)
@@ -195,6 +209,7 @@ namespace Hazel {
 	{
 		ShutdownMono();
 		delete s_Data;
+		s_Data = nullptr;
 	}
 
 	void ScriptEngine::InitMono()

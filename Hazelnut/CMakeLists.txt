@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 project(Hazelnut LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Output directories
@@ -25,7 +25,7 @@ target_include_directories(Hazelnut PRIVATE
     ${PROJECT_SOURCE_DIR}/../Hazel/vendor/spdlog/include
     ${PROJECT_SOURCE_DIR}/../Hazel/src
     ${PROJECT_SOURCE_DIR}/../Hazel/vendor
-    ${PROJECT_SOURCE_DIR}/../Hazel/vendor/entt/include
+    ${PROJECT_SOURCE_DIR}/../Hazel/vendor/entt/single_include
     ${PROJECT_SOURCE_DIR}/../Hazel/vendor/filewatch
     ${PROJECT_SOURCE_DIR}/../Hazel/vendor/glm
     ${PROJECT_SOURCE_DIR}/../Hazel/vendor/ImGuizmo
@@ -50,7 +50,7 @@ target_compile_definitions(Hazelnut PRIVATE
     $<$<CONFIG:Dist>:HZ_DIST>
 )
 
-# Runtime settings
+# Runtime settings - 使用动态 CRT 与 Mono 预编译库一致
 set_target_properties(Hazelnut PROPERTIES
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
 )

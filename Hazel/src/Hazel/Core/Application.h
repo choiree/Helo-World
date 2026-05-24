@@ -57,6 +57,8 @@ namespace Hazel {
 		const ApplicationSpecification& GetSpecification() const { return m_Specification; }
 
 		void SubmitToMainThread(const std::function<void()>& function);
+
+		ThreadPool& GetThreadPool() { return *m_ThreadPool; }
 	private:
 		void Run();
 		bool OnWindowClose(WindowCloseEvent& e);

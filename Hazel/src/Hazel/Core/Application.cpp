@@ -4,7 +4,10 @@
 #include "Hazel/Core/Log.h"
 
 #include "Hazel/Renderer/Renderer.h"
+
+#ifdef HZ_ENABLE_SCRIPTING
 #include "Hazel/Scripting/ScriptEngine.h"
+#endif
 
 #include "Hazel/Core/Input.h"
 #include "Hazel/Utils/PlatformUtils.h"
@@ -55,7 +58,9 @@ namespace Hazel {
 	{
 		HZ_PROFILE_FUNCTION();
 
+#ifdef HZ_ENABLE_SCRIPTING
 		ScriptEngine::Shutdown();
+#endif
 		Renderer::Shutdown();
 	}
 

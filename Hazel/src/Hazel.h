@@ -38,3 +38,5 @@
 
 #include "Hazel/Renderer/OrthographicCamera.h"
 // -----------------------------------
+
+#include "Hazel/Core/JobSystem/ThreadPool.h"

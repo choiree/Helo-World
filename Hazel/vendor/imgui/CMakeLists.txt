@@ -53,7 +53,7 @@ endif()
 set_target_properties(imgui PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
-    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
 )
 
 target_compile_definitions(imgui PUBLIC)

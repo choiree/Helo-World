@@ -1,6 +1,12 @@
-cmake_minimum_required (VERSION 3.8)
-# 顶层项目只定义一次
-project("Hazel-App")
+cmake_minimum_required (VERSION 3.15)
+# C# 只在 Visual Studio 生成器下可用
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
+    project("Hazel-App" LANGUAGES CXX CSharp)
+else()
+    project("Hazel-App" LANGUAGES CXX)
+endif()
+
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +29,7 @@ add_executable(Hazel-App
     "Sandbox/src/SandboxApp.cpp"
     "Sandbox/src/Sandbox2D.cpp"
     "Sandbox/src/Sandbox2D.h"
- "Sandbox/src/Test.h")
+    "Sandbox/src/Test.h")
 
 target_include_directories(Hazel-App PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Sandbox/src"
@@ -33,13 +39,26 @@ target_include_directories(Hazel-App PRIVATE
 target_link_libraries(Hazel-App PRIVATE Hazel)
 
 # 输出目录优化（可选）
+# 使用静态 CRT 与第三方库一致
 set_target_properties(Hazel-App PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
 )
 
 # ==============================================
 # 3. 构建 Hazelnut 编辑器
 # ==============================================
 add_subdirectory("Hazelnut")
+
+# ==============================================
+# 4. 构建 C# 脚本项目（仅 VS 生成器支持）
+# ==============================================
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
+    # 先构建 Hazel-ScriptCore
+    add_subdirectory("Hazel-ScriptCore")
+
+    # 再构建 Sandbox 脚本项目
+    add_subdirectory("Hazelnut/SandboxProject/Assets/Scripts")
+endif()

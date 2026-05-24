@@ -67,6 +67,7 @@ namespace Hazel {
 	void EditorLayer::OnDetach()
 	{
 		HZ_PROFILE_FUNCTION();
+		ScriptEngine::Shutdown();
 	}
 
 	void EditorLayer::OnUpdate(Timestep ts)
