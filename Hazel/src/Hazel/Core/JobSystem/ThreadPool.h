@@ -66,10 +66,12 @@ namespace Hazel {
         ThreadPool& operator=(ThreadPool&&) = delete;
 
         explicit ThreadPool(uint32_t num_threads);
-            
+
         ~ThreadPool() {
             Shutdown();
         }
+
+        uint32_t GetThreadCount() const { return (uint32_t)m_threads.size(); }
 
         void ProcessMainThreadTasks();
         void WaitAll();

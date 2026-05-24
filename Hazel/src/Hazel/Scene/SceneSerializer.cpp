@@ -7,6 +7,8 @@
 #include "Hazel/Core/UUID.h"
 
 #include "Hazel/Project/Project.h"
+#include "Hazel/Scene/SpriteSheetSerializer.h"
+#include "Hazel/Renderer/SpriteSheet.h"
 
 #include <fstream>
 
@@ -413,14 +415,25 @@ namespace Hazel {
 					out << YAML::Key << "Loop" << YAML::Value << clip->IsLooping();
 					out << YAML::Key << "TexturePath" << YAML::Value << texturePath;
 
+					if (!clip->GetSpriteSheetPath().empty())
+						out << YAML::Key << "SpriteSheet" << YAML::Value << clip->GetSpriteSheetPath();
+
 					out << YAML::Key << "Frames" << YAML::Value << YAML::BeginSeq;
 					for (size_t i = 0; i < clip->GetFrameCount(); i++)
 					{
 						const auto& frame = clip->GetFrame(i);
 						out << YAML::BeginMap; // Frame
 						out << YAML::Key << "Duration" << YAML::Value << frame.Duration;
-						out << YAML::Key << "UV0" << YAML::Value << frame.SubTexture->GetUV0();
-						out << YAML::Key << "UV1" << YAML::Value << frame.SubTexture->GetUV1();
+						if (frame.CellX >= 0 && frame.CellY >= 0)
+						{
+							out << YAML::Key << "Cell" << YAML::Value;
+							out << YAML::Flow << YAML::BeginSeq << frame.CellX << frame.CellY << YAML::EndSeq;
+						}
+						else
+						{
+							out << YAML::Key << "UV0" << YAML::Value << frame.SubTexture->GetUV0();
+							out << YAML::Key << "UV1" << YAML::Value << frame.SubTexture->GetUV1();
+						}
 						out << YAML::EndMap; // Frame
 					}
 					out << YAML::EndSeq; // Frames
@@ -682,15 +695,31 @@ namespace Hazel {
 							bool loop = clipNode["Loop"] ? clipNode["Loop"].as<bool>() : true;
 							std::string texturePath = clipNode["TexturePath"] ? clipNode["TexturePath"].as<std::string>() : "";
 
-							if (texturePath.empty())
-								continue;
+							// Load SpriteSheet if present
+							std::string sheetPath = clipNode["SpriteSheet"] ? clipNode["SpriteSheet"].as<std::string>() : "";
+							Ref<SpriteSheet> spriteSheet;
+							Ref<Texture2D> texture;
+							if (!sheetPath.empty())
+							{
+								auto sheetResolved = Project::GetAssetFileSystemPath(sheetPath);
+								spriteSheet = SpriteSheetSerializer::Deserialize(sheetResolved.string());
+								if (spriteSheet)
+									texture = spriteSheet->GetTexture();
+							}
 
-							auto resolvedPath = Project::GetAssetFileSystemPath(texturePath);
-							auto texture = Texture2D::Create(resolvedPath.string());
+							// Fall back to direct texture path
+							if (!texture && !texturePath.empty())
+							{
+								auto resolvedPath = Project::GetAssetFileSystemPath(texturePath);
+								texture = Texture2D::Create(resolvedPath.string());
+							}
+
 							if (!texture || !texture->IsLoaded())
 								continue;
 
 							auto clip = AnimationClip::Create(clipName, loop);
+							if (spriteSheet)
+								clip->SetSpriteSheetPath(sheetPath);
 
 							auto framesNode = clipNode["Frames"];
 							if (framesNode)
@@ -698,10 +727,32 @@ namespace Hazel {
 								for (auto frameNode : framesNode)
 								{
 									float duration = frameNode["Duration"] ? frameNode["Duration"].as<float>() : 0.1f;
-									glm::vec2 uv0 = frameNode["UV0"].as<glm::vec2>();
-									glm::vec2 uv1 = frameNode["UV1"].as<glm::vec2>();
-									auto subTex = SubTexture2D::Create(texture, uv0, uv1);
+									int cellX = -1, cellY = -1;
+									Ref<SubTexture2D> subTex;
+
+									if (frameNode["Cell"] && spriteSheet)
+									{
+										auto cellNode = frameNode["Cell"];
+										cellX = cellNode[0].as<int>();
+										cellY = cellNode[1].as<int>();
+										glm::vec2 uv0 = spriteSheet->CellToUV0(cellX, cellY);
+										glm::vec2 uv1 = spriteSheet->CellToUV1(cellX, cellY);
+										subTex = SubTexture2D::Create(texture, uv0, uv1);
+									}
+									else
+									{
+										glm::vec2 uv0 = frameNode["UV0"].as<glm::vec2>();
+										glm::vec2 uv1 = frameNode["UV1"].as<glm::vec2>();
+										subTex = SubTexture2D::Create(texture, uv0, uv1);
+									}
+
 									clip->AddFrame(subTex, duration);
+									if (cellX >= 0)
+									{
+										auto& frames = const_cast<std::vector<AnimationFrame>&>(clip->GetFrames());
+										frames.back().CellX = cellX;
+										frames.back().CellY = cellY;
+									}
 								}
 							}
 

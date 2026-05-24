@@ -3,6 +3,7 @@
 
 #include "Hazel/Scripting/ScriptEngine.h"
 #include "Hazel/Scene/AnimationSystem.h"
+#include "Hazel/Scene/AnimationClipSerializer.h"
 #include "Hazel/UI/UI.h"
 
 #include <imgui/imgui.h>
@@ -490,6 +491,28 @@ namespace Hazel {
 			else
 			{
 				ImGui::TextDisabled("No clips");
+			}
+
+			ImGui::Separator();
+
+			// Drop .hclip from Content Browser
+			{
+				ImGui::Button("Drop .hclip here", ImVec2(-1, 24));
+				if (ImGui::BeginDragDropTarget())
+				{
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("CONTENT_BROWSER_ITEM"))
+					{
+						const wchar_t* wpath = (const wchar_t*)payload->Data;
+						std::filesystem::path filepath(wpath);
+						if (filepath.extension() == ".hclip")
+						{
+							auto clip = AnimationClip::CreateFromFile(filepath.string());
+							if (clip)
+								component.Clips[clip->GetName()] = clip;
+						}
+					}
+					ImGui::EndDragDropTarget();
+				}
 			}
 
 			ImGui::Separator();

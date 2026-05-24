@@ -65,50 +65,20 @@ namespace Hazel {
 
 		m_EditorCamera = EditorCamera(30.0f, 1.778f, 0.1f, 1000.0f);
 
-		// [TEST] Animation system test - toggle HZ_ANIM_TEST to enable/disable
+		// [TEST] Load animation clip from .hclip file
 #if 1
 		{
-			const int frameWidth = 32, frameHeight = 32;
-			const int frameCount = 5;
-			const int texWidth = frameWidth * frameCount;
-			const int texHeight = frameHeight;
-
-			TextureSpecification spec;
-			spec.Width = texWidth;
-			spec.Height = texHeight;
-			spec.Format = ImageFormat::RGBA8;
-			spec.GenerateMips = false;
-			auto tex = Texture2D::Create(spec);
-
-			uint32_t pixels[texWidth * texHeight];
-			uint32_t colors[frameCount] = {
-				0xFF4444FF, 0x44FF44FF, 0x4444FFFF, 0xFFFF44FF, 0xFF44FFFF,
-			};
-			for (int fy = 0; fy < frameHeight; fy++)
-				for (int fx = 0; fx < frameCount; fx++)
-					for (int px = 0; px < frameWidth; px++)
-						pixels[fy * texWidth + fx * frameWidth + px] = colors[fx];
-
-			tex->SetData(pixels, sizeof(pixels));
-
-			auto clip = AnimationClip::Create("colorCycle", true);
-			for (int i = 0; i < frameCount; i++)
+			auto clip = AnimationClip::CreateFromFile("Animations/colorCycle.hclip");
+			if (clip && clip->GetFrameCount() > 0)
 			{
-				auto sub = SubTexture2D::CreateFromCoords(
-					tex,
-					{ (float)(i * frameWidth), 0.0f },
-					{ (float)frameWidth, (float)frameHeight }
-				);
-				clip->AddFrame(sub, 0.3f);
+				auto testEntity = m_ActiveScene->CreateEntity("AnimationTest");
+				auto& sprite = testEntity.AddComponent<SpriteRendererComponent>();
+				sprite.Texture = clip->GetFrame(0).SubTexture->GetTexture();
+
+				auto& anim = testEntity.AddComponent<SpriteAnimationComponent>();
+				anim.Clips["colorCycle"] = clip;
+				AnimationSystem::Play(anim, "colorCycle");
 			}
-
-			auto testEntity = m_ActiveScene->CreateEntity("AnimationTest");
-			auto& sprite = testEntity.AddComponent<SpriteRendererComponent>();
-			sprite.Texture = tex;
-
-			auto& anim = testEntity.AddComponent<SpriteAnimationComponent>();
-			anim.Clips["colorCycle"] = clip;
-			AnimationSystem::Play(anim, "colorCycle");
 		}
 #endif
 

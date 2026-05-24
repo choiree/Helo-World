@@ -1,0 +1,13 @@
+AnimationClip:
+  Name: checkerTest
+  Loop: true
+  SpriteSheet: Sprites/checkerboard.hsprite
+  Frames:
+    - Cell: [0, 0]
+      Duration: 0.2
+    - Cell: [1, 0]
+      Duration: 0.2
+    - Cell: [1, 1]
+      Duration: 0.2
+    - Cell: [0, 1]
+      Duration: 0.2

@@ -41,14 +41,20 @@ namespace Hazel {
 		{
 			const auto& path = directoryEntry.path();
 			std::string filenameString = path.filename().string();
-			
+
 			ImGui::PushID(filenameString.c_str());
 			Ref<Texture2D> icon = directoryEntry.is_directory() ? m_DirectoryIcon : m_FileIcon;
-			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+
+			bool isHClip = !directoryEntry.is_directory() && path.extension() == ".hclip";
+			bool isHSprite = !directoryEntry.is_directory() && path.extension() == ".hsprite";
+			ImVec4 tint = isHSprite ? ImVec4(0.25f, 0.35f, 0.15f, 1.0f)
+			                       : (isHClip ? ImVec4(0.15f, 0.25f, 0.45f, 1.0f)
+			                                  : ImVec4(0, 0, 0, 0));
+			ImGui::PushStyleColor(ImGuiCol_Button, tint);
 			ImGui::ImageButton(
 				"##file_icon",
-				(ImTextureID)icon->GetRendererID(), 
-				{ thumbnailSize, thumbnailSize }, 
+				(ImTextureID)icon->GetRendererID(),
+				{ thumbnailSize, thumbnailSize },
 				{ 0, 1 }, { 1, 0 }
 			);
 

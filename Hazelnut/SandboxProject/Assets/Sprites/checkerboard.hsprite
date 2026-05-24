@@ -1,0 +1,5 @@
+SpriteSheet:
+  Name: checkerboard
+  CellWidth: 32
+  CellHeight: 32
+  TexturePath: Textures/Checkerboard.png

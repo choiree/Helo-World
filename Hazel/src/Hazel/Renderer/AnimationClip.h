@@ -11,6 +11,8 @@ namespace Hazel {
 	{
 		Ref<SubTexture2D> SubTexture;
 		float Duration = 0.1f;
+		int CellX = -1;
+		int CellY = -1;
 	};
 
 	class AnimationClip
@@ -20,6 +22,8 @@ namespace Hazel {
 		{
 			return CreateRef<AnimationClip>(name, loop);
 		}
+
+		static Ref<AnimationClip> CreateFromFile(const std::string& filepath);
 
 		AnimationClip(const std::string& name, bool loop = true)
 			: m_Name(name), m_Loop(loop) {}
@@ -32,6 +36,12 @@ namespace Hazel {
 		const AnimationFrame& GetFrame(size_t index) const { return m_Frames[index]; }
 
 		void SetLooping(bool loop) { m_Loop = loop; }
+
+		const std::string& GetSourcePath() const { return m_SourcePath; }
+		void SetSourcePath(const std::string& path) { m_SourcePath = path; }
+
+		const std::string& GetSpriteSheetPath() const { return m_SpriteSheetPath; }
+		void SetSpriteSheetPath(const std::string& path) { m_SpriteSheetPath = path; }
 
 		void AddFrame(const Ref<SubTexture2D>& subTexture, float duration = 0.1f)
 		{
@@ -49,6 +59,8 @@ namespace Hazel {
 	private:
 		std::string m_Name;
 		bool m_Loop = true;
+		std::string m_SourcePath;
+		std::string m_SpriteSheetPath;
 		std::vector<AnimationFrame> m_Frames;
 	};
 
