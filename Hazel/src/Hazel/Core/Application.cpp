@@ -14,7 +14,7 @@ namespace Hazel {
 	Application* Application::s_Instance = nullptr;
 
 	Application::Application(const ApplicationSpecification& specification)
-		: m_Specification(specification)
+		: m_Specification(specification), m_ThreadPool(CreateScope<ThreadPool>(4))
 	{
 		HZ_PROFILE_FUNCTION();
 

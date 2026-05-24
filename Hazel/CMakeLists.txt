@@ -32,7 +32,7 @@ file(GLOB IMGUIZMO_SOURCES
 add_library(Hazel STATIC
     ${HAZEL_SOURCES}
     ${IMGUIZMO_SOURCES}
-)
+ "src/Hazel/Core/JobSystem/ThreadPool.cpp")
 
 # ==============================
 # 先添加所有 vendor 子目录

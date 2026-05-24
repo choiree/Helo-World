@@ -9,11 +9,20 @@
 	#endif
 #endif
 
+#include <entt/entt.hpp>
 #include <iostream>
 #include <memory>
 #include <utility>
 #include <algorithm>
 #include <functional>
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <cstdint>
+#include <cassert>
+#include <chrono>
 
 #include <string>
 #include <sstream>
@@ -29,5 +38,5 @@
 #include "Hazel/Debug/Instrumentor.h"
 
 #ifdef HZ_PLATFORM_WINDOWS
-	#include <Windows.h>
+#include <Windows.h>
 #endif

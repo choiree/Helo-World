@@ -10,6 +10,7 @@
 #include "Hazel/Core/Timestep.h"
 
 #include "Hazel/ImGui/ImGuiLayer.h"
+#include "Hazel/Core/JobSystem/ThreadPool.h"
 
 int main(int argc, char** argv);
 
@@ -76,6 +77,8 @@ namespace Hazel {
 	private:
 		static Application* s_Instance;
 		friend int ::main(int argc, char** argv);
+
+		Scope<ThreadPool> m_ThreadPool;
 	};
 
 	// To be defined in CLIENT
