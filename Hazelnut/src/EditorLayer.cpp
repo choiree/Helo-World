@@ -67,7 +67,7 @@ namespace Hazel {
 		m_EditorCamera = EditorCamera(30.0f, 1.778f, 0.1f, 1000.0f);
 
 		// [TEST] Load animation clip from .hclip file
-#if 1
+#if 0
 		{
 			auto clip = AssetManager::Load<AnimationClip>("Animations/colorCycle.hclip");
 			if (clip && clip->GetFrameCount() > 0)

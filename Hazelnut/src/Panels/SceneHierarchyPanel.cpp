@@ -115,7 +115,7 @@ namespace Hazel {
 		}
 	}
 
-	static void DrawVec3Control(const std::string& label, glm::vec3& values, float resetValue = 0.0f, float columnWidth = 100.0f)
+	static void DrawVec3Control(const std::string& label, glm::vec3& values, float resetValue = 0.0f, float columnWidth = 100.0f, float speed = 0.1f)
 	{
 		ImGuiIO& io = ImGui::GetIO();
 		auto boldFont = io.Fonts->Fonts[0];
@@ -144,7 +144,7 @@ namespace Hazel {
 		ImGui::PopStyleColor(3);
 
 		ImGui::SameLine();
-		ImGui::DragFloat("##X", &values.x, 0.1f, 0.0f, 0.0f, "%.2f");
+		ImGui::DragFloat("##X", &values.x, speed, 0.0f, 0.0f, "%.2f");
 		ImGui::PopItemWidth();
 		ImGui::SameLine();
 
@@ -158,7 +158,7 @@ namespace Hazel {
 		ImGui::PopStyleColor(3);
 
 		ImGui::SameLine();
-		ImGui::DragFloat("##Y", &values.y, 0.1f, 0.0f, 0.0f, "%.2f");
+		ImGui::DragFloat("##Y", &values.y, speed, 0.0f, 0.0f, "%.2f");
 		ImGui::PopItemWidth();
 		ImGui::SameLine();
 
@@ -172,7 +172,7 @@ namespace Hazel {
 		ImGui::PopStyleColor(3);
 
 		ImGui::SameLine();
-		ImGui::DragFloat("##Z", &values.z, 0.1f, 0.0f, 0.0f, "%.2f");
+		ImGui::DragFloat("##Z", &values.z, speed, 0.0f, 0.0f, "%.2f");
 		ImGui::PopItemWidth();
 
 		ImGui::PopStyleVar();
@@ -180,6 +180,84 @@ namespace Hazel {
 		ImGui::Columns(1);
 
 		ImGui::PopID();
+	}
+
+	// Draw a single meta data field using the best-fit ImGui widget.
+	template<typename T>
+	static void DrawMetaField(entt::meta_data& data, T& component)
+	{
+		auto type = data.type();
+		const char* name = data.name();
+
+		FieldMeta* meta = data.custom();
+
+		float speed = meta ? meta->speed : 0.1f;
+		float v_min = meta ? meta->min : 0.0f;
+		float v_max = meta ? meta->max : 0.0f;
+		float resetValue = meta ? meta->resetValue : 0.0f;
+		const char* tooltip = meta ? meta->tooltip : nullptr;
+
+		if (type == entt::resolve<glm::vec3>())
+		{
+			glm::vec3 val = data.get(component).cast<glm::vec3>();
+			DrawVec3Control(name, val, resetValue, 100.0f, speed);
+			data.set(component, val);
+		}
+		else if (type == entt::resolve<glm::vec2>())
+		{
+			glm::vec2 val = data.get(component).cast<glm::vec2>();
+			if (ImGui::DragFloat2(name, glm::value_ptr(val), speed, v_min, v_max, "%.2f"))
+				data.set(component, val);
+		}
+		else if (type == entt::resolve<glm::vec4>())
+		{
+			glm::vec4 val = data.get(component).cast<glm::vec4>();
+			if (ImGui::ColorEdit4(name, glm::value_ptr(val)))
+				data.set(component, val);
+		}
+		else if (type == entt::resolve<float>())
+		{
+			float val = data.get(component).cast<float>();
+			if (ImGui::DragFloat(name, &val, speed, v_min, v_max, "%.3f"))
+				data.set(component, val);
+		}
+		else if (type == entt::resolve<int>())
+		{
+			int val = data.get(component).cast<int>();
+			if (ImGui::DragInt(name, &val, speed, (int)v_min, (int)v_max))
+				data.set(component, val);
+		}
+		else if (type == entt::resolve<bool>())
+		{
+			bool val = data.get(component).cast<bool>();
+			if (ImGui::Checkbox(name, &val))
+				data.set(component, val);
+		}
+		else if (type == entt::resolve<std::string>())
+		{
+			std::string val = data.get(component).cast<std::string>();
+			if (ImGui::InputText(name, &val))
+				data.set(component, val);
+		}
+
+		if (tooltip && ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::TextUnformatted(tooltip);
+			ImGui::EndTooltip();
+		}
+	}
+
+	template<typename T>
+	static void DrawComponentFields(T& component)
+	{
+		auto type = entt::resolve<T>();
+		if (!type) return;
+
+		for (auto&& [id, data] : type.data())
+		{
+			DrawMetaField(data, component);
+		}
 	}
 
 	template<typename T, typename UIFunction>
@@ -412,7 +490,7 @@ namespace Hazel {
 
 		DrawComponent<SpriteRendererComponent>("Sprite Renderer", entity, [](auto& component)
 		{
-			ImGui::ColorEdit4("Color", glm::value_ptr(component.Color));
+			DrawComponentFields(component);
 
 			ImGui::Button("Texture", ImVec2(100.0f, 0.0f));
 			if (ImGui::BeginDragDropTarget())
@@ -436,21 +514,16 @@ namespace Hazel {
 					component.SubTexture->GetUV0().x, component.SubTexture->GetUV0().y,
 					component.SubTexture->GetUV1().x, component.SubTexture->GetUV1().y);
 			}
-
-			ImGui::DragFloat("Tiling Factor", &component.TilingFactor, 0.1f, 0.0f, 100.0f);
 		});
 
 		DrawComponent<CircleRendererComponent>("Circle Renderer", entity, [](auto& component)
 		{
-			ImGui::ColorEdit4("Color", glm::value_ptr(component.Color));
-			ImGui::DragFloat("Thickness", &component.Thickness, 0.025f, 0.0f, 1.0f);
-			ImGui::DragFloat("Fade", &component.Fade, 0.00025f, 0.0f, 1.0f);
+			DrawComponentFields(component);
 		});
 
 		DrawComponent<SpriteAnimationComponent>("Sprite Animation", entity, [](auto& component)
 		{
-			ImGui::Checkbox("Playing", &component.Playing);
-			ImGui::DragFloat("Speed Multiplier", &component.SpeedMultiplier, 0.05f, 0.0f, 10.0f);
+			DrawComponentFields(component);
 
 			if (component.Finished)
 			{
@@ -577,22 +650,12 @@ namespace Hazel {
 
 		DrawComponent<BoxCollider2DComponent>("Box Collider 2D", entity, [](auto& component)
 		{
-			ImGui::DragFloat2("Offset", glm::value_ptr(component.Offset));
-			ImGui::DragFloat2("Size", glm::value_ptr(component.Size));
-			ImGui::DragFloat("Density", &component.Density, 0.01f, 0.0f, 1.0f);
-			ImGui::DragFloat("Friction", &component.Friction, 0.01f, 0.0f, 1.0f);
-			ImGui::DragFloat("Restitution", &component.Restitution, 0.01f, 0.0f, 1.0f);
-			//ImGui::DragFloat("Restitution Threshold", &component.RestitutionThreshold, 0.01f, 0.0f);
+			DrawComponentFields(component);
 		});
 
 		DrawComponent<CircleCollider2DComponent>("Circle Collider 2D", entity, [](auto& component)
 		{
-			ImGui::DragFloat2("Offset", glm::value_ptr(component.Offset));
-			ImGui::DragFloat("Radius", &component.Radius);
-			ImGui::DragFloat("Density", &component.Density, 0.01f, 0.0f, 1.0f);
-			ImGui::DragFloat("Friction", &component.Friction, 0.01f, 0.0f, 1.0f);
-			ImGui::DragFloat("Restitution", &component.Restitution, 0.01f, 0.0f, 1.0f);
-			//ImGui::DragFloat("Restitution Threshold", &component.RestitutionThreshold, 0.01f, 0.0f);
+			DrawComponentFields(component);
 		});
 
 		// TODO 依赖问题

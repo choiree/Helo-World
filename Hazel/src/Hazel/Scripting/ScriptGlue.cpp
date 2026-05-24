@@ -34,6 +34,47 @@ namespace Hazel {
 
 #define HZ_ADD_INTERNAL_CALL(Name) mono_add_internal_call("Hazel.InternalCalls::" #Name, Name)
 
+// Generate InternalCall implementations for simple field getters/setters.
+#define HZ_INTERNAL_CALL_SCALAR(Component, Field, ValueType) \
+	static ValueType Component##_Get##Field(UUID entityID) { \
+		Scene* scene = ScriptEngine::GetSceneContext(); \
+		HZ_CORE_ASSERT(scene); \
+		Entity entity = scene->GetEntityByUUID(entityID); \
+		HZ_CORE_ASSERT(entity); \
+		auto& comp = entity.GetComponent<Component>(); \
+		return comp.Field; \
+	} \
+	static void Component##_Set##Field(UUID entityID, ValueType value) { \
+		Scene* scene = ScriptEngine::GetSceneContext(); \
+		HZ_CORE_ASSERT(scene); \
+		Entity entity = scene->GetEntityByUUID(entityID); \
+		HZ_CORE_ASSERT(entity); \
+		auto& comp = entity.GetComponent<Component>(); \
+		comp.Field = value; \
+	}
+
+#define HZ_INTERNAL_CALL_STRUCT(Component, Field, StructType) \
+	static void Component##_Get##Field(UUID entityID, StructType* outResult) { \
+		Scene* scene = ScriptEngine::GetSceneContext(); \
+		HZ_CORE_ASSERT(scene); \
+		Entity entity = scene->GetEntityByUUID(entityID); \
+		HZ_CORE_ASSERT(entity); \
+		auto& comp = entity.GetComponent<Component>(); \
+		*outResult = comp.Field; \
+	} \
+	static void Component##_Set##Field(UUID entityID, StructType* value) { \
+		Scene* scene = ScriptEngine::GetSceneContext(); \
+		HZ_CORE_ASSERT(scene); \
+		Entity entity = scene->GetEntityByUUID(entityID); \
+		HZ_CORE_ASSERT(entity); \
+		auto& comp = entity.GetComponent<Component>(); \
+		comp.Field = *value; \
+	}
+
+#define HZ_INTERNAL_CALL_REGISTER_GETSET(Component, Field) \
+	HZ_ADD_INTERNAL_CALL(Component##_Get##Field); \
+	HZ_ADD_INTERNAL_CALL(Component##_Set##Field);
+
 	static void NativeLog(MonoString* string, int parameter)
 	{
 		std::string str = Utils::MonoStringToString(string);
@@ -84,25 +125,7 @@ namespace Hazel {
 		return entity.GetUUID();
 	}
 
-	static void TransformComponent_GetTranslation(UUID entityID, glm::vec3* outTranslation)
-	{
-		Scene* scene = ScriptEngine::GetSceneContext();
-		HZ_CORE_ASSERT(scene);
-		Entity entity = scene->GetEntityByUUID(entityID);
-		HZ_CORE_ASSERT(entity);
-
-		*outTranslation = entity.GetComponent<TransformComponent>().Translation;
-	}
-
-	static void TransformComponent_SetTranslation(UUID entityID, glm::vec3* translation)
-	{
-		Scene* scene = ScriptEngine::GetSceneContext();
-		HZ_CORE_ASSERT(scene);
-		Entity entity = scene->GetEntityByUUID(entityID);
-		HZ_CORE_ASSERT(entity);
-
-		entity.GetComponent<TransformComponent>().Translation = *translation;
-	}
+	HZ_INTERNAL_CALL_STRUCT(TransformComponent, Translation, glm::vec3);
 
 	static void Rigidbody2DComponent_ApplyLinearImpulse(UUID entityID, glm::vec2* impulse, glm::vec2* point, bool wake)
 	{
@@ -194,77 +217,9 @@ namespace Hazel {
 		tc.TextString = Utils::MonoStringToString(textString);
 	}
 
-	static void TextComponent_GetColor(UUID entityID, glm::vec4* color)
-	{
-		Scene* scene = ScriptEngine::GetSceneContext();
-		HZ_CORE_ASSERT(scene);
-		Entity entity = scene->GetEntityByUUID(entityID);
-		HZ_CORE_ASSERT(entity);
-		HZ_CORE_ASSERT(entity.HasComponent<TextComponent>());
-
-		auto& tc = entity.GetComponent<TextComponent>();
-		*color = tc.Color;
-	}
-
-	static void TextComponent_SetColor(UUID entityID, glm::vec4* color)
-	{
-		Scene* scene = ScriptEngine::GetSceneContext();
-		HZ_CORE_ASSERT(scene);
-		Entity entity = scene->GetEntityByUUID(entityID);
-		HZ_CORE_ASSERT(entity);
-		HZ_CORE_ASSERT(entity.HasComponent<TextComponent>());
-
-		auto& tc = entity.GetComponent<TextComponent>();
-		tc.Color = *color;
-	}
-
-	static float TextComponent_GetKerning(UUID entityID)
-	{
-		Scene* scene = ScriptEngine::GetSceneContext();
-		HZ_CORE_ASSERT(scene);
-		Entity entity = scene->GetEntityByUUID(entityID);
-		HZ_CORE_ASSERT(entity);
-		HZ_CORE_ASSERT(entity.HasComponent<TextComponent>());
-
-		auto& tc = entity.GetComponent<TextComponent>();
-		return tc.Kerning;
-	}
-
-	static void TextComponent_SetKerning(UUID entityID, float kerning)
-	{
-		Scene* scene = ScriptEngine::GetSceneContext();
-		HZ_CORE_ASSERT(scene);
-		Entity entity = scene->GetEntityByUUID(entityID);
-		HZ_CORE_ASSERT(entity);
-		HZ_CORE_ASSERT(entity.HasComponent<TextComponent>());
-
-		auto& tc = entity.GetComponent<TextComponent>();
-		tc.Kerning = kerning;
-	}
-
-	static float TextComponent_GetLineSpacing(UUID entityID)
-	{
-		Scene* scene = ScriptEngine::GetSceneContext();
-		HZ_CORE_ASSERT(scene);
-		Entity entity = scene->GetEntityByUUID(entityID);
-		HZ_CORE_ASSERT(entity);
-		HZ_CORE_ASSERT(entity.HasComponent<TextComponent>());
-
-		auto& tc = entity.GetComponent<TextComponent>();
-		return tc.LineSpacing;
-	}
-
-	static void TextComponent_SetLineSpacing(UUID entityID, float lineSpacing)
-	{
-		Scene* scene = ScriptEngine::GetSceneContext();
-		HZ_CORE_ASSERT(scene);
-		Entity entity = scene->GetEntityByUUID(entityID);
-		HZ_CORE_ASSERT(entity);
-		HZ_CORE_ASSERT(entity.HasComponent<TextComponent>());
-
-		auto& tc = entity.GetComponent<TextComponent>();
-		tc.LineSpacing = lineSpacing;
-	}
+	HZ_INTERNAL_CALL_STRUCT(TextComponent, Color, glm::vec4);
+	HZ_INTERNAL_CALL_SCALAR(TextComponent, Kerning, float);
+	HZ_INTERNAL_CALL_SCALAR(TextComponent, LineSpacing, float);
 
 	static bool Input_IsKeyDown(KeyCode keycode)
 	{
@@ -314,23 +269,19 @@ namespace Hazel {
 		HZ_ADD_INTERNAL_CALL(Entity_HasComponent);
 		HZ_ADD_INTERNAL_CALL(Entity_FindEntityByName);
 
-		HZ_ADD_INTERNAL_CALL(TransformComponent_GetTranslation);
-		HZ_ADD_INTERNAL_CALL(TransformComponent_SetTranslation);
-		
+		HZ_INTERNAL_CALL_REGISTER_GETSET(TransformComponent, Translation);
+
 		HZ_ADD_INTERNAL_CALL(Rigidbody2DComponent_ApplyLinearImpulse);
 		HZ_ADD_INTERNAL_CALL(Rigidbody2DComponent_ApplyLinearImpulseToCenter);
 		HZ_ADD_INTERNAL_CALL(Rigidbody2DComponent_GetLinearVelocity);
 		HZ_ADD_INTERNAL_CALL(Rigidbody2DComponent_GetType);
 		HZ_ADD_INTERNAL_CALL(Rigidbody2DComponent_SetType);
-		
+
 		HZ_ADD_INTERNAL_CALL(TextComponent_GetText);
 		HZ_ADD_INTERNAL_CALL(TextComponent_SetText);
-		HZ_ADD_INTERNAL_CALL(TextComponent_GetColor);
-		HZ_ADD_INTERNAL_CALL(TextComponent_SetColor);
-		HZ_ADD_INTERNAL_CALL(TextComponent_GetKerning);
-		HZ_ADD_INTERNAL_CALL(TextComponent_SetKerning);
-		HZ_ADD_INTERNAL_CALL(TextComponent_GetLineSpacing);
-		HZ_ADD_INTERNAL_CALL(TextComponent_SetLineSpacing);
+		HZ_INTERNAL_CALL_REGISTER_GETSET(TextComponent, Color);
+		HZ_INTERNAL_CALL_REGISTER_GETSET(TextComponent, Kerning);
+		HZ_INTERNAL_CALL_REGISTER_GETSET(TextComponent, LineSpacing);
 
 		HZ_ADD_INTERNAL_CALL(Input_IsKeyDown);
 	}

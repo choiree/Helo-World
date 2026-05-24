@@ -17,7 +17,7 @@ namespace Hazel {
 	Application* Application::s_Instance = nullptr;
 
 	Application::Application(const ApplicationSpecification& specification)
-		: m_Specification(specification), m_ThreadPool(CreateScope<ThreadPool>(4))
+		: m_Specification(specification), m_LayerStack(CreateScope<LayerStack>()), m_ThreadPool(CreateScope<ThreadPool>(4))
 	{
 		HZ_PROFILE_FUNCTION();
 
@@ -58,6 +58,9 @@ namespace Hazel {
 	{
 		HZ_PROFILE_FUNCTION();
 
+		// Destroy layers first — ImGuiLayer::OnDetach needs OpenGL context alive
+		m_LayerStack.reset();
+
 #ifdef HZ_ENABLE_SCRIPTING
 		ScriptEngine::Shutdown();
 #endif
@@ -68,7 +71,7 @@ namespace Hazel {
 	{
 		HZ_PROFILE_FUNCTION();
 
-		m_LayerStack.PushLayer(layer);
+		m_LayerStack->PushLayer(layer);
 		layer->OnAttach();
 	}
 
@@ -76,7 +79,7 @@ namespace Hazel {
 	{
 		HZ_PROFILE_FUNCTION();
 
-		m_LayerStack.PushOverlay(layer);
+		m_LayerStack->PushOverlay(layer);
 		layer->OnAttach();
 	}
 
@@ -100,9 +103,9 @@ namespace Hazel {
 		dispatcher.Dispatch<WindowCloseEvent>(HZ_BIND_EVENT_FN(Application::OnWindowClose));
 		dispatcher.Dispatch<WindowResizeEvent>(HZ_BIND_EVENT_FN(Application::OnWindowResize));
 
-		for (auto it = m_LayerStack.rbegin(); it != m_LayerStack.rend(); ++it)
+		for (auto it = m_LayerStack->rbegin(); it != m_LayerStack->rend(); ++it)
 		{
-			if (e.Handled) 
+			if (e.Handled)
 				break;
 			(*it)->OnEvent(e);
 		}
@@ -117,8 +120,13 @@ namespace Hazel {
 			HZ_PROFILE_SCOPE("RunLoop");
 
 			float time = Time::GetTime();
-			Timestep timestep = time - m_LastFrameTime;
+			float delta = time - m_LastFrameTime;
 			m_LastFrameTime = time;
+
+			// Clamp first-frame spike and prevent spiral-of-death
+			if (delta > 0.1f)
+				delta = 0.1f;
+			Timestep timestep(delta);
 
 			ExecuteMainThreadQueue();
 
@@ -127,7 +135,7 @@ namespace Hazel {
 				{
 					HZ_PROFILE_SCOPE("LayerStack OnUpdate");
 
-					for (Layer* layer : m_LayerStack)
+					for (Layer* layer : *m_LayerStack)
 						layer->OnUpdate(timestep);
 				}
 
@@ -135,7 +143,7 @@ namespace Hazel {
 				{
 					HZ_PROFILE_SCOPE("LayerStack OnImGuiRender");
 
-					for (Layer* layer : m_LayerStack)
+					for (Layer* layer : *m_LayerStack)
 						layer->OnImGuiRender();
 				}
 				m_ImGuiLayer->End();
@@ -169,12 +177,14 @@ namespace Hazel {
 
 	void Application::ExecuteMainThreadQueue()
 	{
-		std::scoped_lock<std::mutex> lock(m_MainThreadQueueMutex);
+		std::vector<std::function<void()>> queue;
+		{
+			std::scoped_lock<std::mutex> lock(m_MainThreadQueueMutex);
+			queue.swap(m_MainThreadQueue);
+		}
 
-		for (auto& func : m_MainThreadQueue)
+		for (auto& func : queue)
 			func();
-
-		m_MainThreadQueue.clear();
 	}
 
 }

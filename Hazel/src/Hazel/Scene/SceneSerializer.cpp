@@ -170,6 +170,83 @@ namespace Hazel {
 		return Rigidbody2DComponent::BodyType::Static;
 	}
 
+	// --- Reflection-driven serialization helpers ---
+
+	static void EmitMetaValue(YAML::Emitter& out, entt::meta_any value)
+	{
+		auto type = value.type();
+		if (type == entt::resolve<glm::vec2>())
+			out << value.cast<glm::vec2>();
+		else if (type == entt::resolve<glm::vec3>())
+			out << value.cast<glm::vec3>();
+		else if (type == entt::resolve<glm::vec4>())
+			out << value.cast<glm::vec4>();
+		else if (type == entt::resolve<float>())
+			out << value.cast<float>();
+		else if (type == entt::resolve<int>())
+			out << value.cast<int>();
+		else if (type == entt::resolve<bool>())
+			out << value.cast<bool>();
+		else if (type == entt::resolve<uint32_t>())
+			out << value.cast<uint32_t>();
+		else if (type == entt::resolve<std::string>())
+			out << value.cast<std::string>();
+		else
+			out << YAML::Null;
+	}
+
+	template<typename T>
+	static void ReadMetaValue(const YAML::Node& node, entt::meta_data& data, T& component)
+	{
+		auto type = data.type();
+		if (type == entt::resolve<glm::vec2>())
+			data.set(component, node.as<glm::vec2>());
+		else if (type == entt::resolve<glm::vec3>())
+			data.set(component, node.as<glm::vec3>());
+		else if (type == entt::resolve<glm::vec4>())
+			data.set(component, node.as<glm::vec4>());
+		else if (type == entt::resolve<float>())
+			data.set(component, node.as<float>());
+		else if (type == entt::resolve<int>())
+			data.set(component, node.as<int>());
+		else if (type == entt::resolve<bool>())
+			data.set(component, node.as<bool>());
+		else if (type == entt::resolve<uint32_t>())
+			data.set(component, node.as<uint32_t>());
+		else if (type == entt::resolve<std::string>())
+			data.set(component, node.as<std::string>());
+	}
+
+	template<typename T>
+	static void SerializeComponent(YAML::Emitter& out, T& component)
+	{
+		auto type = entt::resolve<T>();
+		if (!type) return;
+
+		for (auto&& [id, data] : type.data())
+		{
+			auto value = data.get(component);
+			out << YAML::Key << data.name();
+			EmitMetaValue(out, value);
+		}
+	}
+
+	template<typename T>
+	static void DeserializeComponent(const YAML::Node& node, T& component)
+	{
+		auto type = entt::resolve<T>();
+		if (!type) return;
+
+		for (auto&& [id, data] : type.data())
+		{
+			auto fieldNode = node[data.name()];
+			if (fieldNode)
+				ReadMetaValue(fieldNode, data, component);
+		}
+	}
+
+	// ---------------------------------------------------
+
 	SceneSerializer::SceneSerializer(const Ref<Scene>& scene)
 		: m_Scene(scene)
 	{
@@ -199,9 +276,7 @@ namespace Hazel {
 			out << YAML::BeginMap; // TransformComponent
 
 			auto& tc = entity.GetComponent<TransformComponent>();
-			out << YAML::Key << "Translation" << YAML::Value << tc.Translation;
-			out << YAML::Key << "Rotation" << YAML::Value << tc.Rotation;
-			out << YAML::Key << "Scale" << YAML::Value << tc.Scale;
+			SerializeComponent(out, tc);
 
 			out << YAML::EndMap; // TransformComponent
 		}
@@ -313,14 +388,9 @@ namespace Hazel {
 		if (entity.HasComponent<CircleRendererComponent>())
 		{
 			out << YAML::Key << "CircleRendererComponent";
-			out << YAML::BeginMap; // CircleRendererComponent
-
-			auto& circleRendererComponent = entity.GetComponent<CircleRendererComponent>();
-			out << YAML::Key << "Color" << YAML::Value << circleRendererComponent.Color;
-			out << YAML::Key << "Thickness" << YAML::Value << circleRendererComponent.Thickness;
-			out << YAML::Key << "Fade" << YAML::Value << circleRendererComponent.Fade;
-
-			out << YAML::EndMap; // CircleRendererComponent
+			out << YAML::BeginMap;
+			SerializeComponent(out, entity.GetComponent<CircleRendererComponent>());
+			out << YAML::EndMap;
 		}
 
 		if (entity.HasComponent<Rigidbody2DComponent>())
@@ -338,48 +408,25 @@ namespace Hazel {
 		if (entity.HasComponent<BoxCollider2DComponent>())
 		{
 			out << YAML::Key << "BoxCollider2DComponent";
-			out << YAML::BeginMap; // BoxCollider2DComponent
-
-			auto& bc2dComponent = entity.GetComponent<BoxCollider2DComponent>();
-			out << YAML::Key << "Offset" << YAML::Value << bc2dComponent.Offset;
-			out << YAML::Key << "Size" << YAML::Value << bc2dComponent.Size;
-			out << YAML::Key << "Density" << YAML::Value << bc2dComponent.Density;
-			out << YAML::Key << "Friction" << YAML::Value << bc2dComponent.Friction;
-			out << YAML::Key << "Restitution" << YAML::Value << bc2dComponent.Restitution;
-			// out << YAML::Key << "RestitutionThreshold" << YAML::Value << bc2dComponent.RestitutionThreshold;
-
-			out << YAML::EndMap; // BoxCollider2DComponent
+			out << YAML::BeginMap;
+			SerializeComponent(out, entity.GetComponent<BoxCollider2DComponent>());
+			out << YAML::EndMap;
 		}
 
 		if (entity.HasComponent<CircleCollider2DComponent>())
 		{
 			out << YAML::Key << "CircleCollider2DComponent";
-			out << YAML::BeginMap; // CircleCollider2DComponent
-
-			auto& cc2dComponent = entity.GetComponent<CircleCollider2DComponent>();
-			out << YAML::Key << "Offset" << YAML::Value << cc2dComponent.Offset;
-			out << YAML::Key << "Radius" << YAML::Value << cc2dComponent.Radius;
-			out << YAML::Key << "Density" << YAML::Value << cc2dComponent.Density;
-			out << YAML::Key << "Friction" << YAML::Value << cc2dComponent.Friction;
-			out << YAML::Key << "Restitution" << YAML::Value << cc2dComponent.Restitution;
-			// out << YAML::Key << "RestitutionThreshold" << YAML::Value << cc2dComponent.RestitutionThreshold;
-
-			out << YAML::EndMap; // CircleCollider2DComponent
+			out << YAML::BeginMap;
+			SerializeComponent(out, entity.GetComponent<CircleCollider2DComponent>());
+			out << YAML::EndMap;
 		}
 
 		if (entity.HasComponent<TextComponent>())
 		{
 			out << YAML::Key << "TextComponent";
-			out << YAML::BeginMap; // TextComponent
-
-			auto& textComponent = entity.GetComponent<TextComponent>();
-			out << YAML::Key << "TextString" << YAML::Value << textComponent.TextString;
-			// TODO: textComponent.FontAsset
-			out << YAML::Key << "Color" << YAML::Value << textComponent.Color;
-			out << YAML::Key << "Kerning" << YAML::Value << textComponent.Kerning;
-			out << YAML::Key << "LineSpacing" << YAML::Value << textComponent.LineSpacing;
-
-			out << YAML::EndMap; // TextComponent
+			out << YAML::BeginMap;
+			SerializeComponent(out, entity.GetComponent<TextComponent>());
+			out << YAML::EndMap;
 		}
 
 		if (entity.HasComponent<SpriteAnimationComponent>())
@@ -476,8 +523,8 @@ namespace Hazel {
 		HZ_CORE_ASSERT(false);
 	}
 
-	
-bool SceneSerializer::Deserialize(const std::string& filepath)
+
+	bool SceneSerializer::Deserialize(const std::string& filepath)
 	{
 		AssetManager::BeginScene();
 		YAML::Node data;
@@ -489,10 +536,10 @@ bool SceneSerializer::Deserialize(const std::string& filepath)
 		{
 			HZ_CORE_ERROR("Failed to load .hazel file '{0}'\n     {1}", filepath, e.what());
 			AssetManager::EndScene();
-		return false;
+			return false;
 		}
 
-		
+
 		if (!data["Scene"])
 		{
 			AssetManager::EndScene();
@@ -521,11 +568,8 @@ bool SceneSerializer::Deserialize(const std::string& filepath)
 				auto transformComponent = entity["TransformComponent"];
 				if (transformComponent)
 				{
-					// Entities always have transforms
 					auto& tc = deserializedEntity.GetComponent<TransformComponent>();
-					tc.Translation = transformComponent["Translation"].as<glm::vec3>();
-					tc.Rotation = transformComponent["Rotation"].as<glm::vec3>();
-					tc.Scale = transformComponent["Scale"].as<glm::vec3>();
+					DeserializeComponent(transformComponent, tc);
 				}
 
 				auto cameraComponent = entity["CameraComponent"];
@@ -631,9 +675,7 @@ bool SceneSerializer::Deserialize(const std::string& filepath)
 				if (circleRendererComponent)
 				{
 					auto& crc = deserializedEntity.AddComponent<CircleRendererComponent>();
-					crc.Color = circleRendererComponent["Color"].as<glm::vec4>();
-					crc.Thickness = circleRendererComponent["Thickness"].as<float>();
-					crc.Fade = circleRendererComponent["Fade"].as<float>();
+					DeserializeComponent(circleRendererComponent, crc);
 				}
 
 				auto rigidbody2DComponent = entity["Rigidbody2DComponent"];
@@ -648,35 +690,21 @@ bool SceneSerializer::Deserialize(const std::string& filepath)
 				if (boxCollider2DComponent)
 				{
 					auto& bc2d = deserializedEntity.AddComponent<BoxCollider2DComponent>();
-					bc2d.Offset = boxCollider2DComponent["Offset"].as<glm::vec2>();
-					bc2d.Size = boxCollider2DComponent["Size"].as<glm::vec2>();
-					bc2d.Density = boxCollider2DComponent["Density"].as<float>();
-					bc2d.Friction = boxCollider2DComponent["Friction"].as<float>();
-					bc2d.Restitution = boxCollider2DComponent["Restitution"].as<float>();
-					// bc2d.RestitutionThreshold = boxCollider2DComponent["RestitutionThreshold"].as<float>();
+					DeserializeComponent(boxCollider2DComponent, bc2d);
 				}
 
 				auto circleCollider2DComponent = entity["CircleCollider2DComponent"];
 				if (circleCollider2DComponent)
 				{
 					auto& cc2d = deserializedEntity.AddComponent<CircleCollider2DComponent>();
-					cc2d.Offset = circleCollider2DComponent["Offset"].as<glm::vec2>();
-					cc2d.Radius = circleCollider2DComponent["Radius"].as<float>();
-					cc2d.Density = circleCollider2DComponent["Density"].as<float>();
-					cc2d.Friction = circleCollider2DComponent["Friction"].as<float>();
-					cc2d.Restitution = circleCollider2DComponent["Restitution"].as<float>();
-					// cc2d.RestitutionThreshold = circleCollider2DComponent["RestitutionThreshold"].as<float>();
+					DeserializeComponent(circleCollider2DComponent, cc2d);
 				}
 
 				auto textComponent = entity["TextComponent"];
 				if (textComponent)
 				{
 					auto& tc = deserializedEntity.AddComponent<TextComponent>();
-					tc.TextString = textComponent["TextString"].as<std::string>();
-					// tc.FontAsset // TODO
-					tc.Color = textComponent["Color"].as<glm::vec4>();
-					tc.Kerning = textComponent["Kerning"].as<float>();
-					tc.LineSpacing = textComponent["LineSpacing"].as<float>();
+					DeserializeComponent(textComponent, tc);
 				}
 
 				auto animComponent = entity["SpriteAnimationComponent"];
