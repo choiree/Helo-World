@@ -2,6 +2,7 @@
 #include "Hazel/Scene/Components.h"
 
 #include "Hazel/Scripting/ScriptEngine.h"
+#include "Hazel/Scene/AnimationSystem.h"
 #include "Hazel/UI/UI.h"
 
 #include <imgui/imgui.h>
@@ -77,7 +78,7 @@ namespace Hazel {
 	void SceneHierarchyPanel::DrawEntityNode(Entity entity)
 	{
 		auto& tag = entity.GetComponent<TagComponent>().Tag;
-		
+
 		ImGuiTreeNodeFlags flags = ((m_SelectionContext == entity) ? ImGuiTreeNodeFlags_Selected : 0) | ImGuiTreeNodeFlags_OpenOnArrow;
 		flags |= ImGuiTreeNodeFlags_SpanAvailWidth;
 		bool opened = ImGui::TreeNodeEx((void*)(uint64_t)(uint32_t)entity, flags, tag.c_str());
@@ -178,7 +179,7 @@ namespace Hazel {
 
 		ImGui::PopID();
 	}
-	
+
 	template<typename T, typename UIFunction>
 	static void DrawComponent(const std::string& name, Entity entity, UIFunction uiFunction)
 	{
@@ -251,6 +252,7 @@ namespace Hazel {
 			DisplayAddComponentEntry<Rigidbody2DComponent>("Rigidbody 2D");
 			DisplayAddComponentEntry<BoxCollider2DComponent>("Box Collider 2D");
 			DisplayAddComponentEntry<CircleCollider2DComponent>("Circle Collider 2D");
+			DisplayAddComponentEntry<SpriteAnimationComponent>("Sprite Animation");
 
 			// TODO 依赖问题
 			//DisplayAddComponentEntry<TextComponent>("Text Component");
@@ -409,7 +411,7 @@ namespace Hazel {
 		DrawComponent<SpriteRendererComponent>("Sprite Renderer", entity, [](auto& component)
 		{
 			ImGui::ColorEdit4("Color", glm::value_ptr(component.Color));
-			
+
 			ImGui::Button("Texture", ImVec2(100.0f, 0.0f));
 			if (ImGui::BeginDragDropTarget())
 			{
@@ -426,6 +428,13 @@ namespace Hazel {
 				ImGui::EndDragDropTarget();
 			}
 
+			if (component.SubTexture)
+			{
+				ImGui::Text("SubTexture UV: (%.3f, %.3f) - (%.3f, %.3f)",
+					component.SubTexture->GetUV0().x, component.SubTexture->GetUV0().y,
+					component.SubTexture->GetUV1().x, component.SubTexture->GetUV1().y);
+			}
+
 			ImGui::DragFloat("Tiling Factor", &component.TilingFactor, 0.1f, 0.0f, 100.0f);
 		});
 
@@ -434,6 +443,87 @@ namespace Hazel {
 			ImGui::ColorEdit4("Color", glm::value_ptr(component.Color));
 			ImGui::DragFloat("Thickness", &component.Thickness, 0.025f, 0.0f, 1.0f);
 			ImGui::DragFloat("Fade", &component.Fade, 0.00025f, 0.0f, 1.0f);
+		});
+
+		DrawComponent<SpriteAnimationComponent>("Sprite Animation", entity, [](auto& component)
+		{
+			ImGui::Checkbox("Playing", &component.Playing);
+			ImGui::DragFloat("Speed Multiplier", &component.SpeedMultiplier, 0.05f, 0.0f, 10.0f);
+
+			if (component.Finished)
+			{
+				ImGui::SameLine();
+				ImGui::TextColored({ 0.9f, 0.3f, 0.3f, 1.0f }, "(Finished)");
+			}
+
+			ImGui::Separator();
+
+			// Clips list
+			if (!component.Clips.empty())
+			{
+				ImGui::Text("Clips:");
+				for (const auto& [name, clip] : component.Clips)
+				{
+					bool isCurrent = component.CurrentClip == clip;
+					ImGuiTreeNodeFlags clipFlags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth;
+					if (isCurrent)
+						clipFlags |= ImGuiTreeNodeFlags_Selected;
+
+					bool looping = clip->IsLooping();
+					const char* loopLabel = looping ? "loop" : "once";
+					ImGui::TreeNodeEx(name.c_str(), clipFlags, "%s (%zu frames, %s)",
+						name.c_str(), clip->GetFrameCount(), loopLabel);
+
+					if (ImGui::IsItemClicked())
+						AnimationSystem::Play(component, name);
+
+					if (ImGui::BeginPopupContextItem(name.c_str()))
+					{
+						if (ImGui::MenuItem("Play"))
+							AnimationSystem::Play(component, name);
+						ImGui::EndPopup();
+					}
+
+					ImGui::TreePop();
+				}
+			}
+			else
+			{
+				ImGui::TextDisabled("No clips");
+			}
+
+			ImGui::Separator();
+
+			if (component.CurrentClip)
+			{
+				bool looping = component.CurrentClip->IsLooping();
+				ImGui::Text("Current: %s (%s)", component.CurrentClip->GetName().c_str(), looping ? "loop" : "once");
+				ImGui::Text("Frame: %d / %zu", component.CurrentFrame, component.CurrentClip->GetFrameCount());
+				ImGui::Text("Timer: %.3f", component.FrameTimer);
+
+				if ((size_t)component.CurrentFrame < component.CurrentClip->GetFrameCount())
+				{
+					const auto& currentFrame = component.CurrentClip->GetFrame(component.CurrentFrame);
+					if (currentFrame.SubTexture)
+					{
+						ImGui::Text("UV0: (%.3f, %.3f)", currentFrame.SubTexture->GetUV0().x, currentFrame.SubTexture->GetUV0().y);
+						ImGui::Text("UV1: (%.3f, %.3f)", currentFrame.SubTexture->GetUV1().x, currentFrame.SubTexture->GetUV1().y);
+					}
+				}
+
+				if (ImGui::Button("Stop"))
+					AnimationSystem::Stop(component);
+				ImGui::SameLine();
+				if (ImGui::Button("Pause"))
+					AnimationSystem::Pause(component);
+				ImGui::SameLine();
+				if (ImGui::Button("Resume"))
+					AnimationSystem::Resume(component);
+			}
+			else
+			{
+				ImGui::TextDisabled("No clip selected");
+			}
 		});
 
 		DrawComponent<Rigidbody2DComponent>("Rigidbody 2D", entity, [](auto& component)
@@ -491,7 +581,7 @@ namespace Hazel {
 		});*/
 
 	}
-	
+
 	template<typename T>
 	void SceneHierarchyPanel::DisplayAddComponentEntry(const std::string& entryName) {
 		if (!m_SelectionContext.HasComponent<T>())

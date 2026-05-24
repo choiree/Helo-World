@@ -162,7 +162,7 @@ namespace Hazel {
 		if (bodyTypeString == "Static")    return Rigidbody2DComponent::BodyType::Static;
 		if (bodyTypeString == "Dynamic")   return Rigidbody2DComponent::BodyType::Dynamic;
 		if (bodyTypeString == "Kinematic") return Rigidbody2DComponent::BodyType::Kinematic;
-	
+
 		HZ_CORE_ASSERT(false, "Unknown body type");
 		return Rigidbody2DComponent::BodyType::Static;
 	}
@@ -293,6 +293,15 @@ namespace Hazel {
 			if (spriteRendererComponent.Texture)
 				out << YAML::Key << "TexturePath" << YAML::Value << spriteRendererComponent.Texture->GetPath();
 
+			if (spriteRendererComponent.SubTexture)
+			{
+				out << YAML::Key << "SubTexture" << YAML::Value;
+				out << YAML::BeginMap; // SubTexture
+				out << YAML::Key << "UV0" << YAML::Value << spriteRendererComponent.SubTexture->GetUV0();
+				out << YAML::Key << "UV1" << YAML::Value << spriteRendererComponent.SubTexture->GetUV1();
+				out << YAML::EndMap; // SubTexture
+			}
+
 			out << YAML::Key << "TilingFactor" << YAML::Value << spriteRendererComponent.TilingFactor;
 
 			out << YAML::EndMap; // SpriteRendererComponent
@@ -368,6 +377,60 @@ namespace Hazel {
 			out << YAML::Key << "LineSpacing" << YAML::Value << textComponent.LineSpacing;
 
 			out << YAML::EndMap; // TextComponent
+		}
+
+		if (entity.HasComponent<SpriteAnimationComponent>())
+		{
+			out << YAML::Key << "SpriteAnimationComponent";
+			out << YAML::BeginMap; // SpriteAnimationComponent
+
+			auto& anim = entity.GetComponent<SpriteAnimationComponent>();
+			out << YAML::Key << "SpeedMultiplier" << YAML::Value << anim.SpeedMultiplier;
+			out << YAML::Key << "Playing" << YAML::Value << anim.Playing;
+			out << YAML::Key << "CurrentFrame" << YAML::Value << anim.CurrentFrame;
+			out << YAML::Key << "FrameTimer" << YAML::Value << anim.FrameTimer;
+			if (anim.CurrentClip)
+				out << YAML::Key << "CurrentClip" << YAML::Value << anim.CurrentClip->GetName();
+
+			if (!anim.Clips.empty())
+			{
+				out << YAML::Key << "Clips" << YAML::Value << YAML::BeginSeq;
+				for (const auto& [name, clip] : anim.Clips)
+				{
+					if (clip->GetFrameCount() == 0)
+						continue;
+
+					const auto& firstFrame = clip->GetFrame(0);
+					if (!firstFrame.SubTexture || !firstFrame.SubTexture->GetTexture())
+						continue;
+
+					std::string texturePath = firstFrame.SubTexture->GetTexture()->GetPath();
+					if (texturePath.empty())
+						continue;
+
+					out << YAML::BeginMap; // Clip
+					out << YAML::Key << "Name" << YAML::Value << name;
+					out << YAML::Key << "Loop" << YAML::Value << clip->IsLooping();
+					out << YAML::Key << "TexturePath" << YAML::Value << texturePath;
+
+					out << YAML::Key << "Frames" << YAML::Value << YAML::BeginSeq;
+					for (size_t i = 0; i < clip->GetFrameCount(); i++)
+					{
+						const auto& frame = clip->GetFrame(i);
+						out << YAML::BeginMap; // Frame
+						out << YAML::Key << "Duration" << YAML::Value << frame.Duration;
+						out << YAML::Key << "UV0" << YAML::Value << frame.SubTexture->GetUV0();
+						out << YAML::Key << "UV1" << YAML::Value << frame.SubTexture->GetUV1();
+						out << YAML::EndMap; // Frame
+					}
+					out << YAML::EndSeq; // Frames
+
+					out << YAML::EndMap; // Clip
+				}
+				out << YAML::EndSeq; // Clips
+			}
+
+			out << YAML::EndMap; // SpriteAnimationComponent
 		}
 
 		out << YAML::EndMap; // Entity
@@ -534,6 +597,14 @@ namespace Hazel {
 
 					if (spriteRendererComponent["TilingFactor"])
 						src.TilingFactor = spriteRendererComponent["TilingFactor"].as<float>();
+
+					auto subTextureNode = spriteRendererComponent["SubTexture"];
+					if (subTextureNode && src.Texture)
+					{
+						glm::vec2 uv0 = subTextureNode["UV0"].as<glm::vec2>();
+						glm::vec2 uv1 = subTextureNode["UV1"].as<glm::vec2>();
+						src.SubTexture = SubTexture2D::Create(src.Texture, uv0, uv1);
+					}
 				}
 
 				auto circleRendererComponent = entity["CircleRendererComponent"];
@@ -586,6 +657,66 @@ namespace Hazel {
 					tc.Color = textComponent["Color"].as<glm::vec4>();
 					tc.Kerning = textComponent["Kerning"].as<float>();
 					tc.LineSpacing = textComponent["LineSpacing"].as<float>();
+				}
+
+				auto animComponent = entity["SpriteAnimationComponent"];
+				if (animComponent)
+				{
+					auto& anim = deserializedEntity.AddComponent<SpriteAnimationComponent>();
+					if (animComponent["SpeedMultiplier"])
+						anim.SpeedMultiplier = animComponent["SpeedMultiplier"].as<float>();
+					if (animComponent["Playing"])
+						anim.Playing = animComponent["Playing"].as<bool>();
+					if (animComponent["CurrentFrame"])
+						anim.CurrentFrame = animComponent["CurrentFrame"].as<int>();
+					if (animComponent["FrameTimer"])
+						anim.FrameTimer = animComponent["FrameTimer"].as<float>();
+
+					// Reconstruct clips from serialized data
+					auto clipsNode = animComponent["Clips"];
+					if (clipsNode)
+					{
+						for (auto clipNode : clipsNode)
+						{
+							std::string clipName = clipNode["Name"].as<std::string>();
+							bool loop = clipNode["Loop"] ? clipNode["Loop"].as<bool>() : true;
+							std::string texturePath = clipNode["TexturePath"] ? clipNode["TexturePath"].as<std::string>() : "";
+
+							if (texturePath.empty())
+								continue;
+
+							auto resolvedPath = Project::GetAssetFileSystemPath(texturePath);
+							auto texture = Texture2D::Create(resolvedPath.string());
+							if (!texture || !texture->IsLoaded())
+								continue;
+
+							auto clip = AnimationClip::Create(clipName, loop);
+
+							auto framesNode = clipNode["Frames"];
+							if (framesNode)
+							{
+								for (auto frameNode : framesNode)
+								{
+									float duration = frameNode["Duration"] ? frameNode["Duration"].as<float>() : 0.1f;
+									glm::vec2 uv0 = frameNode["UV0"].as<glm::vec2>();
+									glm::vec2 uv1 = frameNode["UV1"].as<glm::vec2>();
+									auto subTex = SubTexture2D::Create(texture, uv0, uv1);
+									clip->AddFrame(subTex, duration);
+								}
+							}
+
+							anim.Clips[clipName] = clip;
+						}
+					}
+
+					// Restore current clip
+					if (animComponent["CurrentClip"])
+					{
+						std::string currentClipName = animComponent["CurrentClip"].as<std::string>();
+						auto it = anim.Clips.find(currentClipName);
+						if (it != anim.Clips.end())
+							anim.CurrentClip = it->second;
+					}
 				}
 			}
 		}

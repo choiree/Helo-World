@@ -402,10 +402,15 @@ namespace Hazel {
 
 	void Renderer2D::DrawQuad(const glm::mat4& transform, const Ref<Texture2D>& texture, float tilingFactor, const glm::vec4& tintColor, int entityID)
 	{
+		constexpr glm::vec2 defaultTexCoords[] = { { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f } };
+		DrawQuad(transform, texture, defaultTexCoords, tilingFactor, tintColor, entityID);
+	}
+
+	void Renderer2D::DrawQuad(const glm::mat4& transform, const Ref<Texture2D>& texture, const glm::vec2* texCoords, float tilingFactor, const glm::vec4& tintColor, int entityID)
+	{
 		HZ_PROFILE_FUNCTION();
 
 		constexpr size_t quadVertexCount = 4;
-		constexpr glm::vec2 textureCoords[] = { { 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f } };
 
 		if (s_Data.QuadIndexCount >= Renderer2DData::MaxIndices)
 			NextBatch();
@@ -434,7 +439,7 @@ namespace Hazel {
 		{
 			s_Data.QuadVertexBufferPtr->Position = transform * s_Data.QuadVertexPositions[i];
 			s_Data.QuadVertexBufferPtr->Color = tintColor;
-			s_Data.QuadVertexBufferPtr->TexCoord = textureCoords[i];
+			s_Data.QuadVertexBufferPtr->TexCoord = texCoords[i];
 			s_Data.QuadVertexBufferPtr->TexIndex = textureIndex;
 			s_Data.QuadVertexBufferPtr->TilingFactor = tilingFactor;
 			s_Data.QuadVertexBufferPtr->EntityID = entityID;
@@ -545,7 +550,24 @@ namespace Hazel {
 	void Renderer2D::DrawSprite(const glm::mat4& transform, SpriteRendererComponent& src, int entityID)
 	{
 		if (src.Texture)
-			DrawQuad(transform, src.Texture, src.TilingFactor, src.Color, entityID);
+		{
+			if (src.SubTexture)
+			{
+				const glm::vec2& uv0 = src.SubTexture->GetUV0();
+				const glm::vec2& uv1 = src.SubTexture->GetUV1();
+				const glm::vec2 texCoords[] = {
+					{ uv0.x, uv0.y },
+					{ uv1.x, uv0.y },
+					{ uv1.x, uv1.y },
+					{ uv0.x, uv1.y }
+				};
+				DrawQuad(transform, src.Texture, texCoords, src.TilingFactor, src.Color, entityID);
+			}
+			else
+			{
+				DrawQuad(transform, src.Texture, src.TilingFactor, src.Color, entityID);
+			}
+		}
 		else
 			DrawQuad(transform, src.Color, entityID);
 	}

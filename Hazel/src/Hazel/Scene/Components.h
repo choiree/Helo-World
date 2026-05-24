@@ -3,7 +3,11 @@
 #include "SceneCamera.h"
 #include "Hazel/Core/UUID.h"
 #include "Hazel/Renderer/Texture.h"
+#include "Hazel/Renderer/SubTexture2D.h"
+#include "Hazel/Renderer/AnimationClip.h"
 #include "Hazel/Renderer/Font.h"
+
+#include <functional>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -58,6 +62,7 @@ namespace Hazel {
 	{
 		glm::vec4 Color{ 1.0f, 1.0f, 1.0f, 1.0f };
 		Ref<Texture2D> Texture;
+		Ref<SubTexture2D> SubTexture;
 		float TilingFactor = 1.0f;
 
 		SpriteRendererComponent() = default;
@@ -110,6 +115,23 @@ namespace Hazel {
 			InstantiateScript = []() { return static_cast<ScriptableEntity*>(new T()); };
 			DestroyScript = [](NativeScriptComponent* nsc) { delete nsc->Instance; nsc->Instance = nullptr; };
 		}
+	};
+
+	struct SpriteAnimationComponent
+	{
+		std::unordered_map<std::string, Ref<AnimationClip>> Clips;
+
+		Ref<AnimationClip> CurrentClip;
+		int CurrentFrame = 0;
+		float FrameTimer = 0.0f;
+		bool Playing = true;
+		float SpeedMultiplier = 1.0f;
+
+		bool Finished = false;
+		std::function<void()> OnFinished;
+
+		SpriteAnimationComponent() = default;
+		SpriteAnimationComponent(const SpriteAnimationComponent&) = default;
 	};
 
 	// Physics
@@ -177,10 +199,11 @@ namespace Hazel {
 	{
 	};
 
-	using AllComponents = 
+	using AllComponents =
 		ComponentGroup<TransformComponent, SpriteRendererComponent,
 			CircleRendererComponent, CameraComponent, ScriptComponent,
-			NativeScriptComponent, Rigidbody2DComponent, BoxCollider2DComponent,
+			NativeScriptComponent, SpriteAnimationComponent,
+			Rigidbody2DComponent, BoxCollider2DComponent,
 			CircleCollider2DComponent, TextComponent>;
 
 }

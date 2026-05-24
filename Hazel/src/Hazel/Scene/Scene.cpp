@@ -5,6 +5,7 @@
 #include "Components.h"
 #include "ScriptableEntity.h"
 #include "Hazel/Scripting/ScriptEngine.h"
+#include "AnimationSystem.h"
 #include "Hazel/Renderer/Renderer2D.h"
 #include "Hazel/Physics/Physics2D.h"
 
@@ -182,6 +183,9 @@ namespace Hazel {
 					});
 			}
 
+			// Animation
+			AnimationSystem::OnUpdate(m_Registry, ts);
+
 			// Physics
 			{
 				const int32_t velocityIterations = 6;
@@ -292,6 +296,9 @@ namespace Hazel {
 
 	void Scene::OnUpdateEditor(Timestep ts, EditorCamera& camera)
 	{
+		// Animation
+		AnimationSystem::OnUpdate(m_Registry, ts);
+
 		// Render
 		RenderScene(camera);
 	}
@@ -487,6 +494,11 @@ namespace Hazel {
 
 	template<>
 	void Scene::OnComponentAdded<SpriteRendererComponent>(Entity entity, SpriteRendererComponent& component)
+	{
+	}
+
+	template<>
+	void Scene::OnComponentAdded<SpriteAnimationComponent>(Entity entity, SpriteAnimationComponent& component)
 	{
 	}
 
