@@ -9,6 +9,7 @@
 #include "Hazel/Project/Project.h"
 #include "Hazel/Scene/SpriteSheetSerializer.h"
 #include "Hazel/Renderer/SpriteSheet.h"
+#include "Hazel/Project/AssetManager.h"
 
 #include <fstream>
 
@@ -34,8 +35,8 @@ namespace YAML {
 				return false;
 
 			rhs.x = node[0].as<float>();
-			rhs.y = node[1].as<float>();
 			return true;
+						return true;
 		}
 	};
 
@@ -475,8 +476,10 @@ namespace Hazel {
 		HZ_CORE_ASSERT(false);
 	}
 
-	bool SceneSerializer::Deserialize(const std::string& filepath)
+	
+bool SceneSerializer::Deserialize(const std::string& filepath)
 	{
+		AssetManager::BeginScene();
 		YAML::Node data;
 		try
 		{
@@ -485,11 +488,16 @@ namespace Hazel {
 		catch (YAML::ParserException e)
 		{
 			HZ_CORE_ERROR("Failed to load .hazel file '{0}'\n     {1}", filepath, e.what());
-			return false;
+			AssetManager::EndScene();
+		return false;
 		}
 
+		
 		if (!data["Scene"])
+		{
+			AssetManager::EndScene();
 			return false;
+		}
 
 		std::string sceneName = data["Scene"].as<std::string>();
 		HZ_CORE_TRACE("Deserializing scene '{0}'", sceneName);
@@ -604,8 +612,7 @@ namespace Hazel {
 					if (spriteRendererComponent["TexturePath"])
 					{
 						std::string texturePath = spriteRendererComponent["TexturePath"].as<std::string>();
-						auto path = Project::GetAssetFileSystemPath(texturePath);
-						src.Texture = Texture2D::Create(path.string());
+						src.Texture = AssetManager::Load<Texture2D>(texturePath);
 					}
 
 					if (spriteRendererComponent["TilingFactor"])
@@ -701,8 +708,7 @@ namespace Hazel {
 							Ref<Texture2D> texture;
 							if (!sheetPath.empty())
 							{
-								auto sheetResolved = Project::GetAssetFileSystemPath(sheetPath);
-								spriteSheet = SpriteSheetSerializer::Deserialize(sheetResolved.string());
+								spriteSheet = AssetManager::Load<SpriteSheet>(sheetPath);
 								if (spriteSheet)
 									texture = spriteSheet->GetTexture();
 							}
@@ -710,8 +716,7 @@ namespace Hazel {
 							// Fall back to direct texture path
 							if (!texture && !texturePath.empty())
 							{
-								auto resolvedPath = Project::GetAssetFileSystemPath(texturePath);
-								texture = Texture2D::Create(resolvedPath.string());
+								texture = AssetManager::Load<Texture2D>(texturePath);
 							}
 
 							if (!texture || !texture->IsLoaded())
@@ -771,6 +776,7 @@ namespace Hazel {
 				}
 			}
 		}
+
 
 		return true;
 	}

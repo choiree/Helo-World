@@ -2,6 +2,7 @@
 #include "SpriteSheetSerializer.h"
 
 #include "Hazel/Project/Project.h"
+#include "Hazel/Project/AssetManager.h"
 
 #include <yaml-cpp/yaml.h>
 #include <fstream>
@@ -34,8 +35,7 @@ namespace Hazel {
 		std::string texPath = sheetNode["TexturePath"] ? sheetNode["TexturePath"].as<std::string>() : "";
 		if (!texPath.empty())
 		{
-			auto resolved = Project::GetAssetFileSystemPath(texPath);
-			auto tex = Texture2D::Create(resolved.string());
+			auto tex = AssetManager::Load<Texture2D>(texPath);
 			if (tex && tex->IsLoaded())
 				sheet->SetTexture(tex);
 		}

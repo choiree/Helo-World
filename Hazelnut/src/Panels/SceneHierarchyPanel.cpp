@@ -4,6 +4,7 @@
 #include "Hazel/Scripting/ScriptEngine.h"
 #include "Hazel/Scene/AnimationSystem.h"
 #include "Hazel/Scene/AnimationClipSerializer.h"
+#include "Hazel/Project/AssetManager.h"
 #include "Hazel/UI/UI.h"
 
 #include <imgui/imgui.h>
@@ -420,7 +421,7 @@ namespace Hazel {
 				{
 					const wchar_t* path = (const wchar_t*)payload->Data;
 					std::filesystem::path texturePath(path);
-					Ref<Texture2D> texture = Texture2D::Create(texturePath.string());
+					Ref<Texture2D> texture = AssetManager::Load<Texture2D>(texturePath);
 					if (texture->IsLoaded())
 						component.Texture = texture;
 					else
@@ -506,7 +507,7 @@ namespace Hazel {
 						std::filesystem::path filepath(wpath);
 						if (filepath.extension() == ".hclip")
 						{
-							auto clip = AnimationClip::CreateFromFile(filepath.string());
+							auto clip = AssetManager::Load<AnimationClip>(filepath);
 							if (clip)
 								component.Clips[clip->GetName()] = clip;
 						}

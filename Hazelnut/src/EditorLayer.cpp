@@ -6,6 +6,7 @@
 #include "Hazel/Renderer/Font.h"
 #include "Hazel/Renderer/SubTexture2D.h"
 #include "Hazel/Renderer/AnimationClip.h"
+#include "Hazel/Project/AssetManager.h"
 #include "Hazel/Scene/AnimationSystem.h"
 
 #include <imgui/imgui.h>
@@ -28,13 +29,6 @@ namespace Hazel {
 	void EditorLayer::OnAttach()
 	{
 		HZ_PROFILE_FUNCTION();
-
-		m_CheckerboardTexture = Texture2D::Create("assets/textures/Checkerboard.png");
-		m_IconPlay = Texture2D::Create("Resources/Icons/PlayButton.png");
-		m_IconPause = Texture2D::Create("Resources/Icons/PauseButton.png");
-		m_IconSimulate = Texture2D::Create("Resources/Icons/SimulateButton.png");
-		m_IconStep = Texture2D::Create("Resources/Icons/StepButton.png");
-		m_IconStop = Texture2D::Create("Resources/Icons/StopButton.png");
 
 		FramebufferSpecification fbSpec;
 		fbSpec.Attachments = { FramebufferTextureFormat::RGBA8, FramebufferTextureFormat::RED_INTEGER, FramebufferTextureFormat::Depth };
@@ -63,12 +57,19 @@ namespace Hazel {
 
 		}
 
+		m_CheckerboardTexture = AssetManager::Load<Texture2D>("assets/textures/Checkerboard.png");
+		m_IconPlay = AssetManager::Load<Texture2D>("Resources/Icons/PlayButton.png");
+		m_IconPause = AssetManager::Load<Texture2D>("Resources/Icons/PauseButton.png");
+		m_IconSimulate = AssetManager::Load<Texture2D>("Resources/Icons/SimulateButton.png");
+		m_IconStep = AssetManager::Load<Texture2D>("Resources/Icons/StepButton.png");
+		m_IconStop = AssetManager::Load<Texture2D>("Resources/Icons/StopButton.png");
+
 		m_EditorCamera = EditorCamera(30.0f, 1.778f, 0.1f, 1000.0f);
 
 		// [TEST] Load animation clip from .hclip file
 #if 1
 		{
-			auto clip = AnimationClip::CreateFromFile("Animations/colorCycle.hclip");
+			auto clip = AssetManager::Load<AnimationClip>("Animations/colorCycle.hclip");
 			if (clip && clip->GetFrameCount() > 0)
 			{
 				auto testEntity = m_ActiveScene->CreateEntity("AnimationTest");
@@ -670,8 +671,10 @@ namespace Hazel {
 
 	void EditorLayer::OpenProject(const std::filesystem::path& path)
 	{
-		if (Project::Load(path))
+		
+if (Project::Load(path))
 		{
+				AssetManager::Init();
 			ScriptEngine::Init();
 
 			auto startScenePath = Project::GetAssetFileSystemPath(Project::GetActive()->GetConfig().StartScene);
@@ -696,8 +699,10 @@ namespace Hazel {
 		// Project::SaveActive();
 	}
 
-	void EditorLayer::NewScene()
+	
+void EditorLayer::NewScene()
 	{
+		AssetManager::CloseScene();
 		m_ActiveScene = CreateRef<Scene>();
 		m_SceneHierarchyPanel.SetContext(m_ActiveScene);
 		
@@ -722,7 +727,10 @@ namespace Hazel {
 			return;
 		}
 		
-		Ref<Scene> newScene = CreateRef<Scene>();
+		
+		AssetManager::CloseScene();
+
+	Ref<Scene> newScene = CreateRef<Scene>();
 		SceneSerializer serializer(newScene);
 		if (serializer.Deserialize(path.string()))
 		{

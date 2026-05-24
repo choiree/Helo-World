@@ -3,6 +3,7 @@
 #include "SpriteSheetSerializer.h"
 
 #include "Hazel/Project/Project.h"
+#include "Hazel/Project/AssetManager.h"
 #include "Hazel/Renderer/SpriteSheet.h"
 
 #include <yaml-cpp/yaml.h>
@@ -134,8 +135,7 @@ namespace Hazel {
 		Ref<SpriteSheet> spriteSheet;
 		if (!sheetPath.empty())
 		{
-			auto resolvedSheet = Project::GetAssetFileSystemPath(sheetPath);
-			spriteSheet = SpriteSheetSerializer::Deserialize(resolvedSheet.string());
+			spriteSheet = AssetManager::Load<SpriteSheet>(sheetPath);
 			if (spriteSheet)
 				clip->SetSpriteSheetPath(sheetPath);
 		}
@@ -151,8 +151,7 @@ namespace Hazel {
 			std::string texturePath = clipNode["TexturePath"] ? clipNode["TexturePath"].as<std::string>() : "";
 			if (!texturePath.empty())
 			{
-				auto resolvedPath = Project::GetAssetFileSystemPath(texturePath);
-				texture = Texture2D::Create(resolvedPath.string());
+				texture = AssetManager::Load<Texture2D>(texturePath);
 			}
 		}
 
