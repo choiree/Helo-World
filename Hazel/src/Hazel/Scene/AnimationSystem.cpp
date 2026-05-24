@@ -38,7 +38,7 @@ namespace Hazel {
 		anim.Playing = true;
 	}
 
-	void AnimationSystem::OnUpdate(entt::registry& registry, Timestep ts)
+	void AnimationSystem::Execute(entt::registry& registry, Timestep ts)
 	{
 		auto view = registry.view<SpriteRendererComponent, SpriteAnimationComponent>();
 		for (auto [entity, sprite, anim] : view.each())

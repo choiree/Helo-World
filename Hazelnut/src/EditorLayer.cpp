@@ -57,7 +57,7 @@ namespace Hazel {
 
 		}
 
-		m_CheckerboardTexture = AssetManager::Load<Texture2D>("assets/textures/Checkerboard.png");
+		m_CheckerboardTexture = AssetManager::Load<Texture2D>("Textures/Checkerboard.png");
 		m_IconPlay = AssetManager::Load<Texture2D>("Resources/Icons/PlayButton.png");
 		m_IconPause = AssetManager::Load<Texture2D>("Resources/Icons/PauseButton.png");
 		m_IconSimulate = AssetManager::Load<Texture2D>("Resources/Icons/SimulateButton.png");

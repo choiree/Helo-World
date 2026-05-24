@@ -4,6 +4,9 @@
 #include "Hazel/Core/UUID.h"
 #include "Hazel/Renderer/EditorCamera.h"
 
+#include "Hazel/Scene/SystemGraph.h"
+#include "Hazel/Scene/SceneRenderContext.h"
+
 #include "entt/entt.hpp"
 #include "box2d/box2d.h"
 
@@ -60,9 +63,10 @@ namespace Hazel {
 		void OnPhysics2DStart();
 		void OnPhysics2DStop();
 
-		void RenderScene(EditorCamera& camera);
-	private:
+		private:
 		entt::registry m_Registry;
+		SystemGraph m_SystemGraph;
+		bool m_SystemsInitialized = false;
 		uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
 		bool m_IsRunning = false;
 		bool m_IsPaused = false;

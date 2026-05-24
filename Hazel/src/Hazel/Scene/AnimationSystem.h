@@ -1,8 +1,6 @@
 #pragma once
 
-#include "Hazel/Core/Timestep.h"
-
-#include <entt/entt.hpp>
+#include "Hazel/Scene/System.h"
 
 #include <string>
 
@@ -10,11 +8,15 @@ namespace Hazel {
 
 	struct SpriteAnimationComponent;
 
-	class AnimationSystem
+	class AnimationSystem : public System
 	{
 	public:
-		static void OnUpdate(entt::registry& registry, Timestep ts);
+		const char* Name() const override { return "AnimationSystem"; }
+		SystemStage Stage() const override { return SystemStage::Update; }
 
+		void Execute(entt::registry& registry, Timestep ts) override;
+
+		// Utility helpers (called from editor, test code — operate on a single component)
 		static void Play(SpriteAnimationComponent& anim, const std::string& name);
 		static void Stop(SpriteAnimationComponent& anim);
 		static void Pause(SpriteAnimationComponent& anim);

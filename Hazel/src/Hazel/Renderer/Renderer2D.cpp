@@ -487,9 +487,8 @@ namespace Hazel {
 	{
 		HZ_PROFILE_FUNCTION();
 
-		// TODO: implement for circles
-		// if (s_Data.QuadIndexCount >= Renderer2DData::MaxIndices)
-		// 	NextBatch();
+		if (s_Data.CircleIndexCount >= Renderer2DData::MaxIndices)
+			NextBatch();
 
 		for (size_t i = 0; i < 4; i++)
 		{

@@ -6,12 +6,13 @@
 #include "ScriptableEntity.h"
 #include "Hazel/Scripting/ScriptEngine.h"
 #include "AnimationSystem.h"
-#include "Hazel/Renderer/Renderer2D.h"
 #include "Hazel/Physics/Physics2D.h"
 
-#include <glm/glm.hpp>
-
-#include "Entity.h"
+#include "Systems/ScriptSystem.h"
+#include "Systems/PhysicsSystem.h"
+#include "Systems/TransformSyncSystem.h"
+#include "Systems/CameraSystem.h"
+#include "Systems/RenderSystem2D.h"
 
 // Box2D
 #include "box2d/box2d.h"
@@ -21,10 +22,21 @@ namespace Hazel {
 	Scene::Scene()
 		: m_PhysicsWorldId(b2_nullWorldId)
 	{
+		m_Registry.ctx().emplace<SceneRenderContext>();
+
+		m_SystemGraph.AddSystem<ScriptSystem>(this);
+		m_SystemGraph.AddSystem<AnimationSystem>();
+		m_SystemGraph.AddSystem<PhysicsSystem>(m_PhysicsWorldId);
+		m_SystemGraph.AddSystem<TransformSyncSystem>();
+		m_SystemGraph.AddSystem<CameraSystem>();
+		m_SystemGraph.AddSystem<RenderSystem2D>();
+		m_SystemGraph.Build();
 	}
 
 	Scene::~Scene()
 	{
+		m_SystemGraph.OnDetach(m_Registry);
+
 		if (b2World_IsValid(m_PhysicsWorldId))
 			b2DestroyWorld(m_PhysicsWorldId);
 	}
@@ -122,6 +134,8 @@ namespace Hazel {
 
 		OnPhysics2DStart();
 
+		m_SystemGraph.OnAttach(m_Registry);
+
 		// Scripting
 		{
 			ScriptEngine::OnRuntimeStart(this);
@@ -139,6 +153,8 @@ namespace Hazel {
 	void Scene::OnRuntimeStop()
 	{
 		m_IsRunning = false;
+
+		m_SystemGraph.OnDetach(m_Registry);
 
 		OnPhysics2DStop();
 
@@ -159,148 +175,42 @@ namespace Hazel {
 	{
 		if (!m_IsPaused || m_StepFrames-- > 0)
 		{
-			// Update scripts
-			{
-				// C# Entity OnUpdate
-				auto view = m_Registry.view<ScriptComponent>();
-				for (auto [e, _] : view.each())
-				{
-					Entity entity = { e, this };
-					ScriptEngine::OnUpdateEntity(entity, ts);
-				}
-
-				m_Registry.view<NativeScriptComponent>().each([=](auto entity, auto& nsc)
-					{
-						// TODO: Move to Scene::OnScenePlay
-						if (!nsc.Instance)
-						{
-							nsc.Instance = nsc.InstantiateScript();
-							nsc.Instance->m_Entity = Entity{ entity, this };
-							nsc.Instance->OnCreate();
-						}
-
-						nsc.Instance->OnUpdate(ts);
-					});
-			}
-
-			// Animation
-			AnimationSystem::OnUpdate(m_Registry, ts);
-
-			// Physics
-			{
-				const int32_t velocityIterations = 6;
-				const int32_t positionIterations = 2;
-				b2World_Step(m_PhysicsWorldId, ts, 4);
-
-				// Retrieve transform from Box2D
-				auto view = m_Registry.view<TransformComponent, Rigidbody2DComponent>();
-				for (auto [entity, transform, rb2d] : view.each())
-				{
-					b2BodyId bodyId = rb2d.RuntimeBody;
-
-					if (!b2Body_IsValid(bodyId))
-						continue;
-
-					b2Vec2 position = b2Body_GetPosition(bodyId);
-					b2Rot rotation = b2Body_GetRotation(bodyId);
-
-					transform.Translation.x = position.x;
-					transform.Translation.y = position.y;
-					transform.Rotation.z = b2Rot_GetAngle(rotation);
-				}
-			}
+			m_SystemGraph.ExecuteStage(SystemStage::PreUpdate,   m_Registry, ts);
+			m_SystemGraph.ExecuteStage(SystemStage::Update,      m_Registry, ts);
+			m_SystemGraph.ExecuteStage(SystemStage::Physics,     m_Registry, ts);
+			m_SystemGraph.ExecuteStage(SystemStage::PostPhysics, m_Registry, ts);
 		}
 
-		// Render 2D
-		Camera* mainCamera = nullptr;
-		glm::mat4 cameraTransform;
-		{
-			auto view = m_Registry.view<TransformComponent, CameraComponent>();
-			for (auto [entity, transform, camera] : view.each())
-			{
-				if (camera.Primary)
-				{
-					mainCamera = &camera.Camera;
-					cameraTransform = transform.GetTransform();
-					break;
-				}
-			}
-		}
-
-		if (mainCamera)
-		{
-			Renderer2D::BeginScene(*mainCamera, cameraTransform);
-
-			// Draw sprites
-			{
-				auto group = m_Registry.group<TransformComponent>(entt::get<SpriteRendererComponent>);
-				for (auto [entity, transform, sprite] : group.each())
-				{
-					Renderer2D::DrawSprite(transform.GetTransform(), sprite, (int)entity);
-				}
-			}
-
-			// Draw circles
-			{
-				auto view = m_Registry.view<TransformComponent, CircleRendererComponent>();
-				for (auto [entity, transform, circle] : view.each())
-				{
-					Renderer2D::DrawCircle(transform.GetTransform(), circle.Color, circle.Thickness, circle.Fade, (int)entity);
-				}
-			}
-
-			// Draw text
-			{
-				auto view = m_Registry.view<TransformComponent, TextComponent>();
-				for (auto [entity, transform, text] : view.each())
-				{
-
-					Renderer2D::DrawString(text.TextString, transform.GetTransform(), text, (int)entity);
-				}
-			}
-
-			Renderer2D::EndScene();
-		}
-
+		// Render always runs (even when paused)
+		m_Registry.ctx().get<SceneRenderContext&>().UseEditorCamera = false;
+		m_SystemGraph.ExecuteStage(SystemStage::PreRender, m_Registry, ts);
+		m_SystemGraph.ExecuteStage(SystemStage::Render,    m_Registry, ts);
 	}
 
 	void Scene::OnUpdateSimulation(Timestep ts, EditorCamera& camera)
 	{
 		if (!m_IsPaused || m_StepFrames-- > 0)
 		{
-			// Physics
-			{
-				const int32_t subStepCount = 6;
-				b2World_Step(m_PhysicsWorldId, ts, subStepCount);
-
-				// Retrieve transform from Box2D
-				auto view = m_Registry.view<TransformComponent, Rigidbody2DComponent>();
-				for (auto [entity, transformComp, rb2dComp] : view.each())
-				{
-					b2BodyId bodyId = rb2dComp.RuntimeBody;
-
-					if (!b2Body_IsValid(bodyId))
-						continue;
-
-					b2Transform bodyTransform = b2Body_GetTransform(bodyId);
-					transformComp.Translation.x = bodyTransform.p.x;
-					transformComp.Translation.y = bodyTransform.p.y;
-					transformComp.Rotation.z = b2Rot_GetAngle(bodyTransform.q);
-				}
-			}
+			m_SystemGraph.ExecuteStage(SystemStage::Physics,     m_Registry, ts);
+			m_SystemGraph.ExecuteStage(SystemStage::PostPhysics, m_Registry, ts);
 		}
 
-		// Render
-		RenderScene(camera);
+		auto& ctx = m_Registry.ctx().get<SceneRenderContext&>();
+		ctx.UseEditorCamera = true;
+		ctx.EditorCamera = &camera;
+
+		m_SystemGraph.ExecuteStage(SystemStage::Render, m_Registry, ts);
 	}
 
 	void Scene::OnUpdateEditor(Timestep ts, EditorCamera& camera)
 	{
-		// Animation
-		AnimationSystem::OnUpdate(m_Registry, ts);
+		m_SystemGraph.ExecuteStage(SystemStage::Update, m_Registry, ts);
 
-		// Render
-		RenderScene(camera);
+		auto& ctx = m_Registry.ctx().get<SceneRenderContext&>();
+		ctx.UseEditorCamera = true;
+		ctx.EditorCamera = &camera;
+
+		m_SystemGraph.ExecuteStage(SystemStage::Render, m_Registry, ts);
 	}
 
 	void Scene::OnViewportResize(uint32_t width, uint32_t height)
@@ -358,7 +268,6 @@ namespace Hazel {
 
 	Entity Scene::GetEntityByUUID(UUID uuid)
 	{
-		// TODO(Yan): Maybe should be assert
 		if (m_EntityMap.find(uuid) != m_EntityMap.end())
 			return { m_EntityMap.at(uuid), this };
 
@@ -369,7 +278,7 @@ namespace Hazel {
 	{
 		b2WorldDef worldDef = b2DefaultWorldDef();
 		worldDef.gravity = { 0.0f, -9.8f };
-		worldDef.restitutionThreshold = 0.5f;   
+		worldDef.restitutionThreshold = 0.5f;
 		m_PhysicsWorldId = b2CreateWorld(&worldDef);
 
 		auto view = m_Registry.view<Rigidbody2DComponent>();
@@ -382,7 +291,7 @@ namespace Hazel {
 			bodyDef.type = Utils::Rigidbody2DTypeToBox2DBody(rb2d.Type);
 			bodyDef.position = { transform.Translation.x, transform.Translation.y };
 			bodyDef.rotation = b2MakeRot(transform.Rotation.z);
-			bodyDef.motionLocks.angularZ = rb2d.FixedRotation;  
+			bodyDef.motionLocks.angularZ = rb2d.FixedRotation;
 
 			b2BodyId bodyId = b2CreateBody(m_PhysicsWorldId, &bodyDef);
 			rb2d.RuntimeBody = bodyId;
@@ -399,7 +308,7 @@ namespace Hazel {
 
 				b2Polygon polygon = b2MakeBox(bc2d.Size.x * transform.Scale.x,
 					bc2d.Size.y * transform.Scale.y);
-				polygon.centroid = { bc2d.Offset.x, bc2d.Offset.y };  
+				polygon.centroid = { bc2d.Offset.x, bc2d.Offset.y };
 
 				bc2d.RuntimeFixture = b2CreatePolygonShape(bodyId, &shapeDef, &polygon);
 			}
@@ -416,7 +325,7 @@ namespace Hazel {
 
 				b2Circle circle;
 				circle.center = { cc2d.Offset.x, cc2d.Offset.y };
-				circle.radius = transform.Scale.x * cc2d.Radius;   
+				circle.radius = transform.Scale.x * cc2d.Radius;
 
 				cc2d.RuntimeFixture = b2CreateCircleShape(bodyId, &shapeDef, &circle);
 			}
@@ -430,41 +339,7 @@ namespace Hazel {
 		m_PhysicsWorldId = B2_NULL_ID;
 	}
 
-	void Scene::RenderScene(EditorCamera& camera)
-	{
-		Renderer2D::BeginScene(camera);
-
-		// Draw sprites
-		{
-			auto group = m_Registry.group<TransformComponent>(entt::get<SpriteRendererComponent>);
-			for (auto [entity, transform, sprite] : group.each())
-			{
-				Renderer2D::DrawSprite(transform.GetTransform(), sprite, (int)entity);
-			}
-		}
-
-		// Draw circles
-		{
-			auto view = m_Registry.view<TransformComponent, CircleRendererComponent>();
-			for (auto [entity, transform, circle] : view.each())
-			{
-				Renderer2D::DrawCircle(transform.GetTransform(), circle.Color, circle.Thickness, circle.Fade, (int)entity);
-			}
-		}
-
-		// Draw text
-		{
-			auto view = m_Registry.view<TransformComponent, TextComponent>();
-			for (auto [entity, transform, text] : view.each())
-			{
-				Renderer2D::DrawString(text.TextString, transform.GetTransform(), text, (int)entity);
-			}
-		}
-
-		Renderer2D::EndScene();
-	}
-  
-  template<typename T>
+	template<typename T>
 	void Scene::OnComponentAdded(Entity entity, T& component)
 	{
 		static_assert(sizeof(T) == 0);
