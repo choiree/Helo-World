@@ -1,0 +1,14 @@
+Area:
+  Name: "000_MinishWoods"
+  Rooms:
+    - Name: "00_Main"
+      Width: 63
+      Height: 63
+      Bottom:
+        MapData: "rooms/00_Main/gAreaRoomMap_MinishWoods_Main_bottom.bin"
+        SubTiles: "tileSet/gAreaTileSet_MinishWoods_bottom.bin"
+        TileTypes: "tileSet/gAreaTileSetTypes_MinishWoods_bottom.bin"
+      Top:
+        MapData: "rooms/00_Main/gAreaRoomMap_MinishWoods_Main_top.bin"
+        SubTiles: "tileSet/gAreaTileSet_MinishWoods_top.bin"
+        TileTypes: "tileSet/gAreaTileSetTypes_MinishWoods_top.bin"

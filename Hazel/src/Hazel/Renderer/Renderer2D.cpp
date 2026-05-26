@@ -5,6 +5,9 @@
 #include "Hazel/Renderer/Shader.h"
 #include "Hazel/Renderer/UniformBuffer.h"
 #include "Hazel/Renderer/RenderCommand.h"
+#include "Hazel/Renderer/TileMapAsset.h"
+#include "Hazel/Renderer/TileSetAsset.h"
+#include "Hazel/Renderer/PaletteAsset.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -20,7 +23,7 @@ namespace Hazel {
 		glm::vec2 TexCoord;
 		float TexIndex;
 		float TilingFactor;
-		
+
 		// Editor-only
 		int EntityID;
 	};
@@ -58,6 +61,14 @@ namespace Hazel {
 		int EntityID;
 	};
 
+	struct TileInstance
+	{
+		int32_t GridX;
+		int32_t GridY;
+		int32_t PackedData;
+		int32_t EntityID;
+	};
+
 	struct Renderer2DData
 	{
 		static const uint32_t MaxQuads = 20000;
@@ -76,11 +87,17 @@ namespace Hazel {
 
 		Ref<VertexArray> LineVertexArray;
 		Ref<VertexBuffer> LineVertexBuffer;
-		Ref<Shader> LineShader;	
-		
+		Ref<Shader> LineShader;
+
 		Ref<VertexArray> TextVertexArray;
 		Ref<VertexBuffer> TextVertexBuffer;
 		Ref<Shader> TextShader;
+
+		// TileMap
+		static const uint32_t MaxTileInstances = 16384; // 64×64 map × 4 subtiles per tile
+		Ref<VertexArray> TileVertexArray;
+		Ref<VertexBuffer> TileInstanceVBO;
+		Ref<Shader> TileShader;
 
 		uint32_t QuadIndexCount = 0;
 		QuadVertex* QuadVertexBufferBase = nullptr;
@@ -98,11 +115,15 @@ namespace Hazel {
 		TextVertex* TextVertexBufferBase = nullptr;
 		TextVertex* TextVertexBufferPtr = nullptr;
 
+		uint32_t TileInstanceCount = 0;
+		TileInstance* TileInstanceBufferBase = nullptr;
+		TileInstance* TileInstanceBufferPtr = nullptr;
+
 		float LineWidth = 2.0f;
 
 		std::array<Ref<Texture2D>, MaxTextureSlots> TextureSlots;
 		uint32_t TextureSlotIndex = 1; // 0 = white texture
-		
+
 		Ref<Texture2D> FontAtlasTexture;
 
 		glm::vec4 QuadVertexPositions[4];
@@ -200,6 +221,40 @@ namespace Hazel {
 		s_Data.TextVertexArray->SetIndexBuffer(quadIB);
 		s_Data.TextVertexBufferBase = new TextVertex[s_Data.MaxVertices];
 
+		// TileMap
+		{
+			// Fixed template VBO: 4 vertices, just texcoords
+			float templateVertices[] = {
+				0.0f, 0.0f,
+				1.0f, 0.0f,
+				1.0f, 1.0f,
+				0.0f, 1.0f
+			};
+			Ref<VertexBuffer> templateVB = VertexBuffer::Create(templateVertices, sizeof(templateVertices));
+			templateVB->SetLayout({
+				{ ShaderDataType::Float2, "a_TexCoord" }
+			});
+
+			// Instance VBO: per-subtile data (16 bytes each)
+			s_Data.TileInstanceVBO = VertexBuffer::Create(s_Data.MaxTileInstances * sizeof(TileInstance));
+			s_Data.TileInstanceVBO->SetLayout({
+				{ ShaderDataType::Int, "a_GridX",      false, 1 },
+				{ ShaderDataType::Int, "a_GridY",      false, 1 },
+				{ ShaderDataType::Int, "a_PackedData", false, 1 },
+				{ ShaderDataType::Int, "a_EntityID",   false, 1 }
+			});
+
+			// Index buffer: 6 indices for the template quad
+			uint32_t tileIndices[] = { 0, 1, 2, 2, 3, 0 };
+			Ref<IndexBuffer> tileIB = IndexBuffer::Create(tileIndices, 6);
+
+			s_Data.TileVertexArray = VertexArray::Create();
+			s_Data.TileVertexArray->AddVertexBuffer(templateVB);
+			s_Data.TileVertexArray->AddVertexBuffer(s_Data.TileInstanceVBO);
+			s_Data.TileVertexArray->SetIndexBuffer(tileIB);
+			s_Data.TileInstanceBufferBase = new TileInstance[s_Data.MaxTileInstances];
+		}
+
 		s_Data.WhiteTexture = Texture2D::Create(TextureSpecification());
 		uint32_t whiteTextureData = 0xffffffff;
 		s_Data.WhiteTexture->SetData(&whiteTextureData, sizeof(uint32_t));
@@ -212,6 +267,7 @@ namespace Hazel {
 		s_Data.CircleShader = Shader::Create("assets/shaders/Renderer2D_Circle.glsl");
 		s_Data.LineShader = Shader::Create("assets/shaders/Renderer2D_Line.glsl");
 		s_Data.TextShader = Shader::Create("assets/shaders/Renderer2D_Text.glsl");
+		s_Data.TileShader = Shader::Create("assets/shaders/TileMap.glsl");
 
 		// Set first texture slot to 0
 		s_Data.TextureSlots[0] = s_Data.WhiteTexture;
@@ -277,10 +333,13 @@ namespace Hazel {
 		s_Data.CircleVertexBufferPtr = s_Data.CircleVertexBufferBase;
 
 		s_Data.LineVertexCount = 0;
-		s_Data.LineVertexBufferPtr = s_Data.LineVertexBufferBase;	
-		
+		s_Data.LineVertexBufferPtr = s_Data.LineVertexBufferBase;
+
 		s_Data.TextIndexCount = 0;
 		s_Data.TextVertexBufferPtr = s_Data.TextVertexBufferBase;
+
+		s_Data.TileInstanceCount = 0;
+		s_Data.TileInstanceBufferPtr = s_Data.TileInstanceBufferBase;
 
 		s_Data.TextureSlotIndex = 1;
 	}
@@ -321,7 +380,7 @@ namespace Hazel {
 			RenderCommand::DrawLines(s_Data.LineVertexArray, s_Data.LineVertexCount);
 			s_Data.Stats.DrawCalls++;
 		}
-		
+
 		if (s_Data.TextIndexCount)
 		{
 			uint32_t dataSize = (uint32_t)((uint8_t*)s_Data.TextVertexBufferPtr - (uint8_t*)s_Data.TextVertexBufferBase);
@@ -342,6 +401,83 @@ namespace Hazel {
 		StartBatch();
 	}
 
+	static void DrawTileLayer(const TileMapLayer& layer, const Ref<TileSetAsset>& tileset,
+		uint32_t mapWidth, int entityID)
+	{
+		if (!tileset)
+			return;
+
+		constexpr int32_t subOffX[4] = { 0, 8, 0, 8 };
+		constexpr int32_t subOffY[4] = { 8, 8, 0, 0 };
+
+		for (uint32_t cell = 0; cell < (uint32_t)layer.MapData.size(); cell++)
+		{
+			uint16_t tileIndex = layer.MapData[cell];
+			if (tileIndex == 0 || tileIndex >= layer.TileIndices.size())
+				continue;
+
+			uint16_t subBase = layer.TileIndices[tileIndex];
+
+			int32_t tileX = int32_t(cell % mapWidth) * 16;
+			int32_t tileY = int32_t(cell / mapWidth) * 16;
+
+			for (int slot = 0; slot < 4; slot++)
+			{
+				uint32_t idx = subBase + slot;
+				if (idx >= layer.SubTiles.size())
+					continue;
+
+				uint32_t packed = layer.SubTiles[idx];
+				if (packed == 0)
+					continue;
+
+				s_Data.TileInstanceBufferPtr->GridX = tileX + subOffX[slot];
+				s_Data.TileInstanceBufferPtr->GridY = tileY + subOffY[slot];
+				s_Data.TileInstanceBufferPtr->PackedData = static_cast<int32_t>(packed);
+				s_Data.TileInstanceBufferPtr->EntityID = entityID;
+				s_Data.TileInstanceBufferPtr++;
+				s_Data.TileInstanceCount++;
+				s_Data.Stats.QuadCount++;
+			}
+		}
+	}
+
+	void Renderer2D::DrawTileMap(const glm::mat4& transform, const Ref<TileMapAsset>& map,
+		const Ref<TileSetAsset>& bottomTileSet, const Ref<TileSetAsset>& topTileSet,
+		const Ref<PaletteAsset>& palette, int entityID)
+	{
+		if (!map)
+			return;
+
+		uint32_t startInstanceCount = s_Data.TileInstanceCount;
+
+		uint32_t mapW = map->GetWidth();
+		DrawTileLayer(map->Bottom, bottomTileSet, mapW, entityID);
+		DrawTileLayer(map->Top, topTileSet, mapW, entityID);
+
+		if (s_Data.TileInstanceCount == startInstanceCount)
+			return;
+
+		// Bind SSBOs
+		if (bottomTileSet)
+			bottomTileSet->GetBuffer()->Bind(1);
+		if (palette)
+			palette->GetBuffer()->Bind(2);
+
+		// Upload instance buffer
+		uint32_t dataSize = (uint32_t)((uint8_t*)s_Data.TileInstanceBufferPtr - (uint8_t*)s_Data.TileInstanceBufferBase);
+		s_Data.TileInstanceVBO->SetData(s_Data.TileInstanceBufferBase, dataSize);
+
+		s_Data.TileShader->Bind();
+		s_Data.TileShader->SetMat4("u_Model", transform);
+		RenderCommand::DrawIndexedInstanced(s_Data.TileVertexArray, 6, s_Data.TileInstanceCount);
+		s_Data.Stats.DrawCalls++;
+
+		// Reset for next entity
+		s_Data.TileInstanceCount = 0;
+		s_Data.TileInstanceBufferPtr = s_Data.TileInstanceBufferBase;
+	}
+
 	void Renderer2D::DrawQuad(const glm::vec2& position, const glm::vec2& size, const glm::vec4& color)
 	{
 		DrawQuad({ position.x, position.y, 0.0f }, size, color);
@@ -353,7 +489,7 @@ namespace Hazel {
 
 		glm::mat4 transform = glm::translate(glm::mat4(1.0f), position)
 			* glm::scale(glm::mat4(1.0f), { size.x, size.y, 1.0f });
-		
+
 		DrawQuad(transform, color);
 	}
 

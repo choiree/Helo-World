@@ -1,5 +1,5 @@
 #include "EditorLayer.h"
-#include "Hazel/Scene/SceneSerializer.h"
+#include "Hazel/Scene/Serializers/SceneSerializer.h"
 #include "Hazel/Utils/PlatformUtils.h"
 #include "Hazel/Math/Math.h"
 #include "Hazel/Scripting/ScriptEngine.h"

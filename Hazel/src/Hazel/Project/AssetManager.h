@@ -12,13 +12,19 @@ namespace Hazel {
 
 	class SpriteSheet;
 	class AnimationClip;
+	class TileSetAsset;
+	class PaletteAsset;
+	class TileMapAsset;
 
 	enum class AssetType : uint8_t
 	{
 		None = 0,
 		Texture,
 		SpriteSheet,
-		AnimationClip
+		AnimationClip,
+		Tileset,
+		Palette,
+		TileMap
 	};
 
 	struct AssetEntry
@@ -99,12 +105,21 @@ namespace Hazel {
 		return texture;
 	}
 
-	// ---- SpriteSheet / AnimationClip specializations (declared here, defined in .cpp) ----
+	// ---- SpriteSheet / AnimationClip / TileMap specializations (declared here, defined in .cpp) ----
 
 	template<>
 	Ref<SpriteSheet> AssetManager::Load<SpriteSheet>(const std::filesystem::path& path);
 
 	template<>
 	Ref<AnimationClip> AssetManager::Load<AnimationClip>(const std::filesystem::path& path);
+
+	template<>
+	Ref<TileSetAsset> AssetManager::Load<TileSetAsset>(const std::filesystem::path& path);
+
+	template<>
+	Ref<PaletteAsset> AssetManager::Load<PaletteAsset>(const std::filesystem::path& path);
+
+	template<>
+	Ref<TileMapAsset> AssetManager::Load<TileMapAsset>(const std::filesystem::path& path);
 
 }

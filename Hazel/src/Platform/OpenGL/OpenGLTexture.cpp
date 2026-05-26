@@ -11,6 +11,7 @@ namespace Hazel {
 		{
 			switch (format)
 			{
+				case ImageFormat::R8:    return GL_RED;
 				case ImageFormat::RGB8:  return GL_RGB;
 				case ImageFormat::RGBA8: return GL_RGBA;
 			}
@@ -23,6 +24,7 @@ namespace Hazel {
 		{
 			switch (format)
 			{
+			case ImageFormat::R8:    return GL_R8;
 			case ImageFormat::RGB8:  return GL_RGB8;
 			case ImageFormat::RGBA8: return GL_RGBA8;
 			}
@@ -44,11 +46,20 @@ namespace Hazel {
 		glCreateTextures(GL_TEXTURE_2D, 1, &m_RendererID);
 		glTextureStorage2D(m_RendererID, 1, m_InternalFormat, m_Width, m_Height);
 
-		glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTextureParameteri(m_RendererID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		if (m_Specification.NearestFilter)
+		{
+			glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTextureParameteri(m_RendererID, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		}
+		else
+		{
+			glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTextureParameteri(m_RendererID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			glTextureParameteri(m_RendererID, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		}
 	}
 
 	OpenGLTexture2D::OpenGLTexture2D(const std::string& path)

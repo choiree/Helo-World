@@ -45,6 +45,19 @@ namespace Hazel {
 				Renderer2D::DrawString(text.TextString, transform.GetTransform(), text, (int)entity);
 		}
 
+		// Draw tilemaps (after sprites/circles/text to layer correctly)
+		{
+			auto view = registry.view<TransformComponent, TileMapComponent>();
+			for (auto [entity, transform, tmc] : view.each())
+			{
+				if (!tmc.Visible || !tmc.Map)
+					continue;
+				Renderer2D::DrawTileMap(transform.GetTransform(), tmc.Map,
+					tmc.CurrentBottomTileSet, tmc.CurrentTopTileSet,
+					tmc.CurrentPalette, (int)entity);
+			}
+		}
+
 		Renderer2D::EndScene();
 	}
 

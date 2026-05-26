@@ -4,8 +4,12 @@
 #include "Hazel/Project/Project.h"
 #include "Hazel/Renderer/SpriteSheet.h"
 #include "Hazel/Renderer/AnimationClip.h"
-#include "Hazel/Scene/SpriteSheetSerializer.h"
-#include "Hazel/Scene/AnimationClipSerializer.h"
+#include "Hazel/Scene/Serializers/SpriteSheetSerializer.h"
+#include "Hazel/Scene/Serializers/AnimationClipSerializer.h"
+#include "Hazel/Scene/Serializers/TileMapSerializer.h"
+#include "Hazel/Renderer/TileSetAsset.h"
+#include "Hazel/Renderer/PaletteAsset.h"
+#include "Hazel/Renderer/TileMapAsset.h"
 
 namespace Hazel {
 
@@ -208,6 +212,96 @@ namespace Hazel {
 		}
 
 		return clip;
+	}
+
+	// ---- Load<TileSetAsset> ----
+
+	template<>
+	Ref<TileSetAsset> AssetManager::Load<TileSetAsset>(const std::filesystem::path& path)
+	{
+		std::string key = MakeKey(path);
+
+		auto it = s_Registry.find(key);
+		if (it != s_Registry.end())
+		{
+			it->second.RefCount++;
+			return std::static_pointer_cast<TileSetAsset>(it->second.Handle);
+		}
+
+		auto resolvedPath = ResolvePath(path);
+		auto asset = TileMapSerializer::LoadTileset(resolvedPath.string());
+
+		if (asset)
+		{
+			AssetEntry entry;
+			entry.Type = AssetType::Tileset;
+			entry.Handle = asset;
+			entry.RefCount = 1;
+			s_Registry[key] = entry;
+			TrackInScene(key);
+		}
+
+		return asset;
+	}
+
+	// ---- Load<PaletteAsset> ----
+
+	template<>
+	Ref<PaletteAsset> AssetManager::Load<PaletteAsset>(const std::filesystem::path& path)
+	{
+		std::string key = MakeKey(path);
+
+		auto it = s_Registry.find(key);
+		if (it != s_Registry.end())
+		{
+			it->second.RefCount++;
+			return std::static_pointer_cast<PaletteAsset>(it->second.Handle);
+		}
+
+		auto resolvedPath = ResolvePath(path);
+		auto asset = TileMapSerializer::LoadPalette(resolvedPath.string());
+
+		if (asset)
+		{
+			AssetEntry entry;
+			entry.Type = AssetType::Palette;
+			entry.Handle = asset;
+			entry.RefCount = 1;
+			s_Registry[key] = entry;
+			TrackInScene(key);
+		}
+
+		return asset;
+	}
+
+	// ---- Load<TileMapAsset> ----
+
+	template<>
+	Ref<TileMapAsset> AssetManager::Load<TileMapAsset>(const std::filesystem::path& path)
+	{
+		std::string key = MakeKey(path);
+
+		auto it = s_Registry.find(key);
+		if (it != s_Registry.end())
+		{
+			it->second.RefCount++;
+			return std::static_pointer_cast<TileMapAsset>(it->second.Handle);
+		}
+
+		auto resolvedPath = ResolvePath(path);
+		auto asset = TileMapSerializer::LoadTileMap(resolvedPath.string());
+
+		if (asset)
+		{
+			AssetEntry entry;
+			entry.Type = AssetType::TileMap;
+			entry.Handle = asset;
+			entry.RefCount = 1;
+			s_Registry[key] = entry;
+			TrackInScene(key);
+		}
+
+		return asset;
 	}
 
 }

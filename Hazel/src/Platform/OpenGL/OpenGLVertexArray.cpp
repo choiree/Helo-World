@@ -80,6 +80,7 @@ namespace Hazel {
 						element.Normalized ? GL_TRUE : GL_FALSE,
 						layout.GetStride(),
 						(const void*)element.Offset);
+					glVertexAttribDivisor(m_VertexBufferIndex, element.Divisor);
 					m_VertexBufferIndex++;
 					break;
 				}
@@ -95,6 +96,7 @@ namespace Hazel {
 						ShaderDataTypeToOpenGLBaseType(element.Type),
 						layout.GetStride(),
 						(const void*)element.Offset);
+					glVertexAttribDivisor(m_VertexBufferIndex, element.Divisor);
 					m_VertexBufferIndex++;
 					break;
 				}

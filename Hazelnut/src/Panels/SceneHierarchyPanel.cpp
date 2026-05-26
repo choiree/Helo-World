@@ -3,7 +3,7 @@
 
 #include "Hazel/Scripting/ScriptEngine.h"
 #include "Hazel/Scene/AnimationSystem.h"
-#include "Hazel/Scene/AnimationClipSerializer.h"
+#include "Hazel/Scene/Serializers/AnimationClipSerializer.h"
 #include "Hazel/Project/AssetManager.h"
 #include "Hazel/UI/UI.h"
 

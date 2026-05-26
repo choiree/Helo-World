@@ -7,6 +7,9 @@
 #include "Hazel/Renderer/SubTexture2D.h"
 #include "Hazel/Renderer/AnimationClip.h"
 #include "Hazel/Renderer/Font.h"
+#include "Hazel/Renderer/TileMapAsset.h"
+#include "Hazel/Renderer/TileSetAsset.h"
+#include "Hazel/Renderer/PaletteAsset.h"
 
 #include <functional>
 
@@ -37,6 +40,10 @@ namespace Hazel {
 		TagComponent(const std::string& tag)
 			: Tag(tag) {}
 	};
+
+	HZ_REGISTER_COMPONENT(TagComponent,
+		factory.data<&TagComponent::Tag>("Tag");
+	);
 
 	struct TransformComponent
 	{
@@ -270,6 +277,24 @@ namespace Hazel {
 			.custom<FieldMeta>(FieldMeta{.speed = 0.025f});
 	);
 
+	struct TileMapComponent
+	{
+		Ref<TileMapAsset> Map;
+		bool Visible = true;
+
+		// Runtime-switchable (not serialized)
+		Ref<TileSetAsset> CurrentBottomTileSet;
+		Ref<TileSetAsset> CurrentTopTileSet;
+		Ref<PaletteAsset> CurrentPalette;
+
+		TileMapComponent() = default;
+		TileMapComponent(const TileMapComponent&) = default;
+	};
+
+	HZ_REGISTER_COMPONENT(TileMapComponent,
+		factory.data<&TileMapComponent::Visible>("Visible");
+	);
+
 	// AllComponents is needed by Scene::Copy and DuplicateEntity which
 	// require compile-time types for efficient entt::view<T>() iteration.
 	// entt has no runtime "iterate all components of an entity" API.
@@ -285,6 +310,6 @@ namespace Hazel {
 			CircleRendererComponent, CameraComponent, ScriptComponent,
 			NativeScriptComponent, SpriteAnimationComponent,
 			Rigidbody2DComponent, BoxCollider2DComponent,
-			CircleCollider2DComponent, TextComponent>;
+			CircleCollider2DComponent, TextComponent, TileMapComponent>;
 
 }

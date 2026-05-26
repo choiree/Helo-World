@@ -15,12 +15,13 @@ namespace Hazel {
 		RGBA32F
 	};
 
-	struct TextureSpecification
+	struct TextureSpecification  
 	{
 		uint32_t Width = 1;
 		uint32_t Height = 1;
 		ImageFormat Format = ImageFormat::RGBA8;
 		bool GenerateMips = true;
+		bool NearestFilter = false;
 	};
 
 	class Texture
