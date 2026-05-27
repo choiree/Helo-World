@@ -11,6 +11,9 @@
 #include "Hazel/Renderer/SpriteSheet.h"
 #include "Hazel/Project/AssetManager.h"
 
+#include "Hazel/Serialization/ArchiveYAML.h"
+#include "Hazel/Serialization/Serialization.h"
+
 #include <fstream>
 
 #include <yaml-cpp/yaml.h>
@@ -33,7 +36,6 @@ namespace YAML {
 		{
 			if (!node.IsSequence() || node.size() != 2)
 				return false;
-
 			rhs.x = node[0].as<float>();
 			rhs.y = node[1].as<float>();
 			return true;
@@ -57,7 +59,6 @@ namespace YAML {
 		{
 			if (!node.IsSequence() || node.size() != 3)
 				return false;
-
 			rhs.x = node[0].as<float>();
 			rhs.y = node[1].as<float>();
 			rhs.z = node[2].as<float>();
@@ -83,7 +84,6 @@ namespace YAML {
 		{
 			if (!node.IsSequence() || node.size() != 4)
 				return false;
-
 			rhs.x = node[0].as<float>();
 			rhs.y = node[1].as<float>();
 			rhs.z = node[2].as<float>();
@@ -119,12 +119,12 @@ namespace Hazel {
 				break
 
 #define READ_SCRIPT_FIELD(FieldType, Type)             \
-	case ScriptFieldType::FieldType:                   \
-	{                                                  \
-		Type data = scriptField["Data"].as<Type>();    \
-		fieldInstance.SetValue(data);                  \
-		break;                                         \
-	}
+		case ScriptFieldType::FieldType:                   \
+		{                                                  \
+			Type data = scriptField["Data"].as<Type>();    \
+			fieldInstance.SetValue(data);                  \
+			break;                                         \
+		}
 
 	YAML::Emitter& operator<<(YAML::Emitter& out, const glm::vec2& v)
 	{
@@ -155,7 +155,6 @@ namespace Hazel {
 			case Rigidbody2DComponent::BodyType::Dynamic:   return "Dynamic";
 			case Rigidbody2DComponent::BodyType::Kinematic: return "Kinematic";
 		}
-
 		HZ_CORE_ASSERT(false, "Unknown body type");
 		return {};
 	}
@@ -165,147 +164,272 @@ namespace Hazel {
 		if (bodyTypeString == "Static")    return Rigidbody2DComponent::BodyType::Static;
 		if (bodyTypeString == "Dynamic")   return Rigidbody2DComponent::BodyType::Dynamic;
 		if (bodyTypeString == "Kinematic") return Rigidbody2DComponent::BodyType::Kinematic;
-
 		HZ_CORE_ASSERT(false, "Unknown body type");
 		return Rigidbody2DComponent::BodyType::Static;
 	}
 
 	// ==================================================================
-	//  Type-level YAML helpers
+	//  Component name helper
 	// ==================================================================
 
-	using YamlPrimitiveTypes = std::tuple<float, int, bool, uint32_t, std::string>;
-	using YamlCustomTypes    = std::tuple<glm::vec2, glm::vec3, glm::vec4>;
+	template<typename T>
+	static const char* ComponentName()
+	{
+		auto type = entt::resolve<T>();
+		return type.name();
+	}
+
+	// ==================================================================
+	//  Component type list
+	// ==================================================================
+
+	using SceneComponentTypes = std::tuple<
+		TagComponent,
+		TransformComponent,
+		CameraComponent,
+		ScriptComponent,
+		SpriteRendererComponent,
+		CircleRendererComponent,
+		Rigidbody2DComponent,
+		BoxCollider2DComponent,
+		CircleCollider2DComponent,
+		TextComponent,
+		SpriteAnimationComponent,
+		TileMapComponent
+	>;
+
+	// ==================================================================
+	//  Branch-1: Component serialization specializations
+	// ==================================================================
+
+	template<>
+	struct Serializer<CameraComponent>
+	{
+		static void Do(Archive& ar, CameraComponent& cc)
+		{
+			if (ar.GetMode() == Archive::Mode::Write)
+			{
+				auto& camera = cc.Camera;
+				ar.BeginObject("Camera");
+				int projType = (int)camera.GetProjectionType();
+				ar.Value("ProjectionType", projType);
+				float fov = camera.GetPerspectiveVerticalFOV();
+				ar.Value("PerspectiveFOV", fov);
+				float pNear = camera.GetPerspectiveNearClip();
+				ar.Value("PerspectiveNear", pNear);
+				float pFar = camera.GetPerspectiveFarClip();
+				ar.Value("PerspectiveFar", pFar);
+				float orthoSize = camera.GetOrthographicSize();
+				ar.Value("OrthographicSize", orthoSize);
+				float oNear = camera.GetOrthographicNearClip();
+				ar.Value("OrthographicNear", oNear);
+				float oFar = camera.GetOrthographicFarClip();
+				ar.Value("OrthographicFar", oFar);
+				ar.EndObject();
+			}
+			else
+			{
+				if (ar.HasKey("Camera"))
+				{
+					ar.BeginObject("Camera");
+					int projType = 0;
+					ar.Value("ProjectionType", projType);
+					cc.Camera.SetProjectionType((SceneCamera::ProjectionType)projType);
+					float fov = cc.Camera.GetPerspectiveVerticalFOV();
+					ar.Value("PerspectiveFOV", fov);
+					cc.Camera.SetPerspectiveVerticalFOV(fov);
+					float pNear = cc.Camera.GetPerspectiveNearClip();
+					ar.Value("PerspectiveNear", pNear);
+					cc.Camera.SetPerspectiveNearClip(pNear);
+					float pFar = cc.Camera.GetPerspectiveFarClip();
+					ar.Value("PerspectiveFar", pFar);
+					cc.Camera.SetPerspectiveFarClip(pFar);
+					float orthoSize = cc.Camera.GetOrthographicSize();
+					ar.Value("OrthographicSize", orthoSize);
+					cc.Camera.SetOrthographicSize(orthoSize);
+					float oNear = cc.Camera.GetOrthographicNearClip();
+					ar.Value("OrthographicNear", oNear);
+					cc.Camera.SetOrthographicNearClip(oNear);
+					float oFar = cc.Camera.GetOrthographicFarClip();
+					ar.Value("OrthographicFar", oFar);
+					cc.Camera.SetOrthographicFarClip(oFar);
+					ar.EndObject();
+				}
+			}
+
+			auto type = entt::resolve<CameraComponent>();
+			if (type) SerializeReflected(ar, type, cc);
+		}
+	};
+
+	template<>
+	struct Serializer<ScriptComponent>
+	{
+		static void Do(Archive& ar, ScriptComponent& sc)
+		{
+			auto type = entt::resolve<ScriptComponent>();
+			if (type) SerializeReflected(ar, type, sc);
+		}
+	};
+
+	template<>
+	struct Serializer<SpriteRendererComponent>
+	{
+		static void Do(Archive& ar, SpriteRendererComponent& src)
+		{
+			if (ar.GetMode() == Archive::Mode::Write)
+			{
+				if (src.Texture)
+				{
+					std::string path = src.Texture->GetPath();
+					ar.Value("TexturePath", path);
+				}
+				if (src.SubTexture)
+				{
+					ar.BeginObject("SubTexture");
+					glm::vec2 uv0 = src.SubTexture->GetUV0();
+					glm::vec2 uv1 = src.SubTexture->GetUV1();
+					ar.Value("UV0", uv0);
+					ar.Value("UV1", uv1);
+					ar.EndObject();
+				}
+			}
+			else
+			{
+				if (ar.HasKey("TexturePath"))
+				{
+					std::string texturePath;
+					ar.Value("TexturePath", texturePath);
+					src.Texture = AssetManager::Load<Texture2D>(texturePath);
+				}
+				if (ar.HasKey("SubTexture") && src.Texture)
+				{
+					ar.BeginObject("SubTexture");
+					glm::vec2 uv0{}, uv1{};
+					ar.Value("UV0", uv0);
+					ar.Value("UV1", uv1);
+					src.SubTexture = SubTexture2D::Create(src.Texture, uv0, uv1);
+					ar.EndObject();
+				}
+			}
+
+			auto type = entt::resolve<SpriteRendererComponent>();
+			if (type) SerializeReflected(ar, type, src);
+		}
+	};
+
+	template<>
+	struct Serializer<Rigidbody2DComponent>
+	{
+		static void Do(Archive& ar, Rigidbody2DComponent& rb2d)
+		{
+			if (ar.GetMode() == Archive::Mode::Write)
+			{
+				std::string bodyType = RigidBody2DBodyTypeToString(rb2d.Type);
+				ar.Value("BodyType", bodyType);
+			}
+			else
+			{
+				if (ar.HasKey("BodyType"))
+				{
+					std::string bodyTypeStr;
+					ar.Value("BodyType", bodyTypeStr);
+					rb2d.Type = RigidBody2DBodyTypeFromString(bodyTypeStr);
+				}
+			}
+
+			auto type = entt::resolve<Rigidbody2DComponent>();
+			if (type) SerializeReflected(ar, type, rb2d);
+		}
+	};
+
+	template<>
+	struct Serializer<SpriteAnimationComponent>
+	{
+		static void Do(Archive& ar, SpriteAnimationComponent& anim)
+		{
+			auto type = entt::resolve<SpriteAnimationComponent>();
+			if (type) SerializeReflected(ar, type, anim);
+		}
+	};
+
+	template<>
+	struct Serializer<TileMapComponent>
+	{
+		static void Do(Archive& ar, TileMapComponent& tmc)
+		{
+			if (ar.GetMode() == Archive::Mode::Write)
+			{
+				if (tmc.Map)
+				{
+					std::string path = tmc.Map->GetSourcePath();
+					ar.Value("MapPath", path);
+				}
+			}
+			else
+			{
+				if (ar.HasKey("MapPath"))
+				{
+					std::string mapPath;
+					ar.Value("MapPath", mapPath);
+					tmc.Map = AssetManager::Load<TileMapAsset>(mapPath);
+				}
+			}
+
+			auto type = entt::resolve<TileMapComponent>();
+			if (type) SerializeReflected(ar, type, tmc);
+		}
+	};
+
+	// ==================================================================
+	//  Fold expression helpers for entity-level component iteration
+	// ==================================================================
 
 	template<typename... Ts>
-	static bool TryEmitAs(YAML::Emitter& out, entt::meta_any& value, std::tuple<Ts...>)
+	static void SerializeComponents(Archive& ar, Entity entity, std::tuple<Ts...>)
 	{
-		return ((value.type() == entt::resolve<Ts>() && (out << value.cast<Ts>(), true)) || ...);
+		((entity.HasComponent<Ts>() && [&]() {
+			ar.BeginObject(ComponentName<Ts>());
+			Serialize(ar, entity.GetComponent<Ts>());
+			ar.EndObject();
+			return true;
+		}()), ...);
 	}
 
-	static void EmitMetaValue(YAML::Emitter& out, entt::meta_any value)
+	template<typename... Ts>
+	static void DeserializeComponents(Archive& ar, Entity entity, std::tuple<Ts...>)
 	{
-		if (TryEmitAs(out, value, YamlCustomTypes{}))
-			return;
-		if (TryEmitAs(out, value, YamlPrimitiveTypes{}))
-			return;
-		out << YAML::Null;
-	}
-
-	template<typename T, typename... Ts>
-	static bool TryReadAs(const YAML::Node& node, entt::meta_data& data, T& component, std::tuple<Ts...>)
-	{
-		return ((data.type() == entt::resolve<Ts>() && (data.set(component, node.as<Ts>()), true)) || ...);
-	}
-
-	template<typename T>
-	static void ReadMetaValue(const YAML::Node& node, entt::meta_data& data, T& component)
-	{
-		if (TryReadAs(node, data, component, YamlCustomTypes{}))
-			return;
-		if (TryReadAs(node, data, component, YamlPrimitiveTypes{}))
-			return;
+		((ar.HasKey(ComponentName<Ts>()) && [&]() {
+			auto& comp = entity.AddOrReplaceComponent<Ts>();
+			ar.BeginObject(ComponentName<Ts>());
+			Serialize(ar, comp);
+			ar.EndObject();
+			return true;
+		}()), ...);
 	}
 
 	// ==================================================================
-	//  Component-level reflection helpers
+	//  Entity serialization (Branch-1: Entity)
 	// ==================================================================
 
-	template<typename T>
-	static void SerializeComponent(YAML::Emitter& out, T& component)
+	static void SerializeEntity(YAML::Emitter& out, Entity entity)
 	{
-		auto type = entt::resolve<T>();
-		if (!type) return;
+		HZ_CORE_ASSERT(entity.HasComponent<IDComponent>());
 
-		for (auto&& [id, data] : type.data())
+		out << YAML::BeginMap;
+		out << YAML::Key << "Entity" << YAML::Value << entity.GetUUID();
+
+		ArchiveYAML ar(out);
+		SerializeComponents(ar, entity, SceneComponentTypes{});
+
+		// ScriptComponent: ScriptFields (needs Entity + raw emitter)
+		if (entity.HasComponent<ScriptComponent>())
 		{
-			auto value = data.get(component);
-			out << YAML::Key << data.name();
-			EmitMetaValue(out, value);
-		}
-	}
-
-	template<typename T>
-	static void DeserializeComponent(const YAML::Node& node, T& component)
-	{
-		auto type = entt::resolve<T>();
-		if (!type) return;
-
-		for (auto&& [id, data] : type.data())
-		{
-			auto fieldNode = node[data.name()];
-			if (fieldNode)
-				ReadMetaValue(fieldNode, data, component);
-		}
-	}
-
-	// ==================================================================
-	//  ComponentSerializer — default (reflection) + custom specializations
-	// ==================================================================
-
-	template<typename T>
-	struct ComponentSerializer
-	{
-		static void Serialize(YAML::Emitter& out, Entity entity)
-		{
-			if (!entity.HasComponent<T>())
-				return;
-			auto type = entt::resolve<T>();
-			if (!type)
-				return;
-			out << YAML::Key << type.name();
-			out << YAML::BeginMap;
-			SerializeComponent(out, entity.GetComponent<T>());
-			out << YAML::EndMap;
-		}
-	};
-
-	template<>
-	struct ComponentSerializer<CameraComponent>
-	{
-		static void Serialize(YAML::Emitter& out, Entity entity)
-		{
-			if (!entity.HasComponent<CameraComponent>())
-				return;
-			out << YAML::Key << "CameraComponent";
-			out << YAML::BeginMap;
-
-			auto& cameraComponent = entity.GetComponent<CameraComponent>();
-			auto& camera = cameraComponent.Camera;
-
-			out << YAML::Key << "Camera" << YAML::Value;
-			out << YAML::BeginMap;
-			out << YAML::Key << "ProjectionType" << YAML::Value << (int)camera.GetProjectionType();
-			out << YAML::Key << "PerspectiveFOV" << YAML::Value << camera.GetPerspectiveVerticalFOV();
-			out << YAML::Key << "PerspectiveNear" << YAML::Value << camera.GetPerspectiveNearClip();
-			out << YAML::Key << "PerspectiveFar" << YAML::Value << camera.GetPerspectiveFarClip();
-			out << YAML::Key << "OrthographicSize" << YAML::Value << camera.GetOrthographicSize();
-			out << YAML::Key << "OrthographicNear" << YAML::Value << camera.GetOrthographicNearClip();
-			out << YAML::Key << "OrthographicFar" << YAML::Value << camera.GetOrthographicFarClip();
-			out << YAML::EndMap;
-
-			SerializeComponent(out, cameraComponent);
-
-			out << YAML::EndMap;
-		}
-	};
-
-	template<>
-	struct ComponentSerializer<ScriptComponent>
-	{
-		static void Serialize(YAML::Emitter& out, Entity entity)
-		{
-			if (!entity.HasComponent<ScriptComponent>())
-				return;
-			auto& scriptComponent = entity.GetComponent<ScriptComponent>();
-
-			out << YAML::Key << "ScriptComponent";
-			out << YAML::BeginMap;
-			SerializeComponent(out, scriptComponent);
-
-			Ref<ScriptClass> entityClass = ScriptEngine::GetEntityClass(scriptComponent.ClassName);
-			const auto& fields = entityClass->GetFields();
-			if (fields.size() > 0)
+			auto& sc = entity.GetComponent<ScriptComponent>();
+			Ref<ScriptClass> entityClass = ScriptEngine::GetEntityClass(sc.ClassName);
+			std::map<std::string, ScriptField> emptyFields;
+			const auto& fields = entityClass ? entityClass->GetFields() : emptyFields;
+			if (!fields.empty())
 			{
 				out << YAML::Key << "ScriptFields" << YAML::Value;
 				auto& entityFields = ScriptEngine::GetScriptFieldMap(entity);
@@ -314,14 +438,11 @@ namespace Hazel {
 				{
 					if (entityFields.find(name) == entityFields.end())
 						continue;
-
 					out << YAML::BeginMap;
 					out << YAML::Key << "Name" << YAML::Value << name;
 					out << YAML::Key << "Type" << YAML::Value << Utils::ScriptFieldTypeToString(field.Type);
-
 					out << YAML::Key << "Data" << YAML::Value;
 					ScriptFieldInstance& scriptField = entityFields.at(name);
-
 					switch (field.Type)
 					{
 						WRITE_SCRIPT_FIELD(Float,   float     );
@@ -345,69 +466,12 @@ namespace Hazel {
 				}
 				out << YAML::EndSeq;
 			}
-
-			out << YAML::EndMap;
 		}
-	};
 
-	template<>
-	struct ComponentSerializer<SpriteRendererComponent>
-	{
-		static void Serialize(YAML::Emitter& out, Entity entity)
+		// SpriteAnimationComponent: Clips and CurrentClip
+		if (entity.HasComponent<SpriteAnimationComponent>())
 		{
-			if (!entity.HasComponent<SpriteRendererComponent>())
-				return;
-			out << YAML::Key << "SpriteRendererComponent";
-			out << YAML::BeginMap;
-
-			auto& src = entity.GetComponent<SpriteRendererComponent>();
-			SerializeComponent(out, src);
-			if (src.Texture)
-				out << YAML::Key << "TexturePath" << YAML::Value << src.Texture->GetPath();
-
-			if (src.SubTexture)
-			{
-				out << YAML::Key << "SubTexture" << YAML::Value;
-				out << YAML::BeginMap;
-				out << YAML::Key << "UV0" << YAML::Value << src.SubTexture->GetUV0();
-				out << YAML::Key << "UV1" << YAML::Value << src.SubTexture->GetUV1();
-				out << YAML::EndMap;
-			}
-
-			out << YAML::EndMap;
-		}
-	};
-
-	template<>
-	struct ComponentSerializer<Rigidbody2DComponent>
-	{
-		static void Serialize(YAML::Emitter& out, Entity entity)
-		{
-			if (!entity.HasComponent<Rigidbody2DComponent>())
-				return;
-			out << YAML::Key << "Rigidbody2DComponent";
-			out << YAML::BeginMap;
-
-			auto& rb2d = entity.GetComponent<Rigidbody2DComponent>();
-			out << YAML::Key << "BodyType" << YAML::Value << RigidBody2DBodyTypeToString(rb2d.Type);
-			SerializeComponent(out, rb2d);
-
-			out << YAML::EndMap;
-		}
-	};
-
-	template<>
-	struct ComponentSerializer<SpriteAnimationComponent>
-	{
-		static void Serialize(YAML::Emitter& out, Entity entity)
-		{
-			if (!entity.HasComponent<SpriteAnimationComponent>())
-				return;
-			out << YAML::Key << "SpriteAnimationComponent";
-			out << YAML::BeginMap;
-
 			auto& anim = entity.GetComponent<SpriteAnimationComponent>();
-			SerializeComponent(out, anim);
 			if (anim.CurrentClip)
 				out << YAML::Key << "CurrentClip" << YAML::Value << anim.CurrentClip->GetName();
 
@@ -418,11 +482,9 @@ namespace Hazel {
 				{
 					if (clip->GetFrameCount() == 0)
 						continue;
-
 					const auto& firstFrame = clip->GetFrame(0);
 					if (!firstFrame.SubTexture || !firstFrame.SubTexture->GetTexture())
 						continue;
-
 					std::string texturePath = firstFrame.SubTexture->GetTexture()->GetPath();
 					if (texturePath.empty())
 						continue;
@@ -431,7 +493,6 @@ namespace Hazel {
 					out << YAML::Key << "Name" << YAML::Value << name;
 					out << YAML::Key << "Loop" << YAML::Value << clip->IsLooping();
 					out << YAML::Key << "TexturePath" << YAML::Value << texturePath;
-
 					if (!clip->GetSpriteSheetPath().empty())
 						out << YAML::Key << "SpriteSheet" << YAML::Value << clip->GetSpriteSheetPath();
 
@@ -454,116 +515,46 @@ namespace Hazel {
 						out << YAML::EndMap;
 					}
 					out << YAML::EndSeq;
-
 					out << YAML::EndMap;
 				}
 				out << YAML::EndSeq;
 			}
-
-			out << YAML::EndMap;
 		}
-	};
 
-	template<>
-	struct ComponentSerializer<TileMapComponent>
-	{
-		static void Serialize(YAML::Emitter& out, Entity entity)
-		{
-			if (!entity.HasComponent<TileMapComponent>())
-				return;
-			out << YAML::Key << "TileMapComponent";
-			out << YAML::BeginMap;
-
-			auto& tmc = entity.GetComponent<TileMapComponent>();
-			if (tmc.Map)
-				out << YAML::Key << "MapPath" << YAML::Value << tmc.Map->GetSourcePath();
-			SerializeComponent(out, tmc);
-
-			out << YAML::EndMap;
-		}
-	};
+		out << YAML::EndMap;
+	}
 
 	// ==================================================================
-	//  ComponentDeserializer — default (reflection) + custom specializations
+	//  Entity deserialization
 	// ==================================================================
 
-	template<typename T>
-	struct ComponentDeserializer
+	static void DeserializeEntity(const YAML::Node& entityNode, Entity entity)
 	{
-		static void Deserialize(const YAML::Node& entityNode, Entity entity)
-		{
-			auto type = entt::resolve<T>();
-			if (!type)
-				return;
-			auto node = entityNode[type.name()];
-			if (!node)
-				return;
-			auto& comp = entity.AddOrReplaceComponent<T>();
-			DeserializeComponent(node, comp);
-		}
-	};
+		ArchiveYAML ar(entityNode);
+		DeserializeComponents(ar, entity, SceneComponentTypes{});
 
-	template<>
-	struct ComponentDeserializer<CameraComponent>
-	{
-		static void Deserialize(const YAML::Node& entityNode, Entity entity)
+		// ScriptComponent: restore ScriptFields
+		auto scriptNode = entityNode["ScriptComponent"];
+		if (scriptNode)
 		{
-			auto node = entityNode["CameraComponent"];
-			if (!node)
-				return;
-			auto& cc = entity.AddOrReplaceComponent<CameraComponent>();
-
-			auto cameraProps = node["Camera"];
-			if (cameraProps)
+			auto scriptFieldsNode = scriptNode["ScriptFields"];
+			if (scriptFieldsNode && entity.HasComponent<ScriptComponent>())
 			{
-				cc.Camera.SetProjectionType((SceneCamera::ProjectionType)cameraProps["ProjectionType"].as<int>());
-				cc.Camera.SetPerspectiveVerticalFOV(cameraProps["PerspectiveFOV"].as<float>());
-				cc.Camera.SetPerspectiveNearClip(cameraProps["PerspectiveNear"].as<float>());
-				cc.Camera.SetPerspectiveFarClip(cameraProps["PerspectiveFar"].as<float>());
-				cc.Camera.SetOrthographicSize(cameraProps["OrthographicSize"].as<float>());
-				cc.Camera.SetOrthographicNearClip(cameraProps["OrthographicNear"].as<float>());
-				cc.Camera.SetOrthographicFarClip(cameraProps["OrthographicFar"].as<float>());
-			}
-
-			DeserializeComponent(node, cc);
-		}
-	};
-
-	template<>
-	struct ComponentDeserializer<ScriptComponent>
-	{
-		static void Deserialize(const YAML::Node& entityNode, Entity entity)
-		{
-			auto node = entityNode["ScriptComponent"];
-			if (!node)
-				return;
-			auto& sc = entity.AddOrReplaceComponent<ScriptComponent>();
-			DeserializeComponent(node, sc);
-
-			auto scriptFields = node["ScriptFields"];
-			if (scriptFields)
-			{
+				auto& sc = entity.GetComponent<ScriptComponent>();
 				Ref<ScriptClass> entityClass = ScriptEngine::GetEntityClass(sc.ClassName);
 				if (entityClass)
 				{
 					const auto& fields = entityClass->GetFields();
 					auto& entityFields = ScriptEngine::GetScriptFieldMap(entity);
-
-					for (auto scriptField : scriptFields)
+					for (auto scriptField : scriptFieldsNode)
 					{
 						std::string name = scriptField["Name"].as<std::string>();
 						std::string typeString = scriptField["Type"].as<std::string>();
 						ScriptFieldType type = Utils::ScriptFieldTypeFromString(typeString);
-
 						ScriptFieldInstance& fieldInstance = entityFields[name];
-
-						HZ_CORE_ASSERT(fields.find(name) != fields.end());
-
 						if (fields.find(name) == fields.end())
 							continue;
-
 						fieldInstance.Field = fields.at(name);
-
 						switch (type)
 						{
 							READ_SCRIPT_FIELD(Float, float);
@@ -587,66 +578,13 @@ namespace Hazel {
 				}
 			}
 		}
-	};
 
-	template<>
-	struct ComponentDeserializer<SpriteRendererComponent>
-	{
-		static void Deserialize(const YAML::Node& entityNode, Entity entity)
+		// SpriteAnimationComponent: reconstruct Clips
+		if (entity.HasComponent<SpriteAnimationComponent>())
 		{
-			auto node = entityNode["SpriteRendererComponent"];
-			if (!node)
-				return;
-			auto& src = entity.AddOrReplaceComponent<SpriteRendererComponent>();
-
-			if (node["TexturePath"])
-			{
-				std::string texturePath = node["TexturePath"].as<std::string>();
-				src.Texture = AssetManager::Load<Texture2D>(texturePath);
-			}
-
-			auto subTextureNode = node["SubTexture"];
-			if (subTextureNode && src.Texture)
-			{
-				glm::vec2 uv0 = subTextureNode["UV0"].as<glm::vec2>();
-				glm::vec2 uv1 = subTextureNode["UV1"].as<glm::vec2>();
-				src.SubTexture = SubTexture2D::Create(src.Texture, uv0, uv1);
-			}
-
-			DeserializeComponent(node, src);
-		}
-	};
-
-	template<>
-	struct ComponentDeserializer<Rigidbody2DComponent>
-	{
-		static void Deserialize(const YAML::Node& entityNode, Entity entity)
-		{
-			auto node = entityNode["Rigidbody2DComponent"];
-			if (!node)
-				return;
-			auto& rb2d = entity.AddOrReplaceComponent<Rigidbody2DComponent>();
-
-			if (node["BodyType"])
-				rb2d.Type = RigidBody2DBodyTypeFromString(node["BodyType"].as<std::string>());
-
-			DeserializeComponent(node, rb2d);
-		}
-	};
-
-	template<>
-	struct ComponentDeserializer<SpriteAnimationComponent>
-	{
-		static void Deserialize(const YAML::Node& entityNode, Entity entity)
-		{
-			auto node = entityNode["SpriteAnimationComponent"];
-			if (!node)
-				return;
-			auto& anim = entity.AddOrReplaceComponent<SpriteAnimationComponent>();
-			DeserializeComponent(node, anim);
-
-			// Reconstruct clips from serialized data
-			auto clipsNode = node["Clips"];
+			auto& anim = entity.GetComponent<SpriteAnimationComponent>();
+			auto animNode = entityNode["SpriteAnimationComponent"];
+			auto clipsNode = animNode["Clips"];
 			if (clipsNode)
 			{
 				for (auto clipNode : clipsNode)
@@ -654,8 +592,8 @@ namespace Hazel {
 					std::string clipName = clipNode["Name"].as<std::string>();
 					bool loop = clipNode["Loop"] ? clipNode["Loop"].as<bool>() : true;
 					std::string texturePath = clipNode["TexturePath"] ? clipNode["TexturePath"].as<std::string>() : "";
-
 					std::string sheetPath = clipNode["SpriteSheet"] ? clipNode["SpriteSheet"].as<std::string>() : "";
+
 					Ref<SpriteSheet> spriteSheet;
 					Ref<Texture2D> texture;
 					if (!sheetPath.empty())
@@ -664,10 +602,8 @@ namespace Hazel {
 						if (spriteSheet)
 							texture = spriteSheet->GetTexture();
 					}
-
 					if (!texture && !texturePath.empty())
 						texture = AssetManager::Load<Texture2D>(texturePath);
-
 					if (!texture || !texture->IsLoaded())
 						continue;
 
@@ -709,88 +645,22 @@ namespace Hazel {
 							}
 						}
 					}
-
 					anim.Clips[clipName] = clip;
 				}
 			}
 
-			// Restore current clip
-			if (node["CurrentClip"])
+			if (animNode["CurrentClip"])
 			{
-				std::string currentClipName = node["CurrentClip"].as<std::string>();
+				std::string currentClipName = animNode["CurrentClip"].as<std::string>();
 				auto it = anim.Clips.find(currentClipName);
 				if (it != anim.Clips.end())
 					anim.CurrentClip = it->second;
 			}
 		}
-	};
-
-	template<>
-	struct ComponentDeserializer<TileMapComponent>
-	{
-		static void Deserialize(const YAML::Node& entityNode, Entity entity)
-		{
-			auto node = entityNode["TileMapComponent"];
-			if (!node)
-				return;
-			auto& tmc = entity.AddOrReplaceComponent<TileMapComponent>();
-
-			if (node["MapPath"])
-				tmc.Map = AssetManager::Load<TileMapAsset>(node["MapPath"].as<std::string>());
-
-			DeserializeComponent(node, tmc);
-		}
-	};
-
-	// ==================================================================
-	//  Type list + fold expressions
-	// ==================================================================
-
-	using SceneComponentTypes = std::tuple<
-		TagComponent,
-		TransformComponent,
-		CameraComponent,
-		ScriptComponent,
-		SpriteRendererComponent,
-		CircleRendererComponent,
-		Rigidbody2DComponent,
-		BoxCollider2DComponent,
-		CircleCollider2DComponent,
-		TextComponent,
-		SpriteAnimationComponent,
-		TileMapComponent
-	>;
-
-	template<typename... Ts>
-	static void SerializeAllComponents(YAML::Emitter& out, Entity entity, std::tuple<Ts...>)
-	{
-		(ComponentSerializer<Ts>::Serialize(out, entity), ...);
-	}
-
-	template<typename... Ts>
-	static void DeserializeAllComponents(const YAML::Node& entityNode, Entity entity, std::tuple<Ts...>)
-	{
-		(ComponentDeserializer<Ts>::Deserialize(entityNode, entity), ...);
 	}
 
 	// ==================================================================
-	//  Entity-level
-	// ==================================================================
-
-	static void SerializeEntity(YAML::Emitter& out, Entity entity)
-	{
-		HZ_CORE_ASSERT(entity.HasComponent<IDComponent>());
-
-		out << YAML::BeginMap;
-		out << YAML::Key << "Entity" << YAML::Value << entity.GetUUID();
-
-		SerializeAllComponents(out, entity, SceneComponentTypes{});
-
-		out << YAML::EndMap;
-	}
-
-	// ==================================================================
-	//  SceneSerializer
+	//  SceneSerializer public API
 	// ==================================================================
 
 	SceneSerializer::SceneSerializer(const Ref<Scene>& scene)
@@ -804,13 +674,15 @@ namespace Hazel {
 		out << YAML::BeginMap;
 		out << YAML::Key << "Scene" << YAML::Value << "Untitled";
 		out << YAML::Key << "Entities" << YAML::Value << YAML::BeginSeq;
+
 		auto view = m_Scene->m_Registry.view<entt::entity>();
 		view.each([&](entt::entity entityID) {
 			Entity entity = { entityID, m_Scene.get() };
 			if (!entity)
 				return;
 			SerializeEntity(out, entity);
-			});
+		});
+
 		out << YAML::EndSeq;
 		out << YAML::EndMap;
 
@@ -820,7 +692,6 @@ namespace Hazel {
 
 	void SceneSerializer::SerializeRuntime(const std::string& filepath)
 	{
-		// Not implemented
 		HZ_CORE_ASSERT(false);
 	}
 
@@ -851,12 +722,12 @@ namespace Hazel {
 		auto entities = data["Entities"];
 		if (entities)
 		{
-			for (auto entity : entities)
+			for (auto entityNode : entities)
 			{
-				uint64_t uuid = entity["Entity"].as<uint64_t>();
+				uint64_t uuid = entityNode["Entity"].as<uint64_t>();
 
 				std::string name;
-				auto tagNode = entity["TagComponent"];
+				auto tagNode = entityNode["TagComponent"];
 				if (tagNode)
 					name = tagNode["Tag"].as<std::string>();
 
@@ -864,7 +735,7 @@ namespace Hazel {
 
 				Entity deserializedEntity = m_Scene->CreateEntityWithUUID(uuid, name);
 
-				DeserializeAllComponents(entity, deserializedEntity, SceneComponentTypes{});
+				DeserializeEntity(entityNode, deserializedEntity);
 			}
 		}
 
@@ -873,7 +744,6 @@ namespace Hazel {
 
 	bool SceneSerializer::DeserializeRuntime(const std::string& filepath)
 	{
-		// Not implemented
 		HZ_CORE_ASSERT(false);
 		return false;
 	}
