@@ -29,6 +29,8 @@ add_executable(Hazel-App
     "Sandbox/src/SandboxApp.cpp"
     "Sandbox/src/Sandbox2D.cpp"
     "Sandbox/src/Sandbox2D.h"
+    "Sandbox/src/SandboxGbaRoom.cpp"
+    "Sandbox/src/SandboxGbaRoom.h"
     "Sandbox/src/Test.h")
 
 target_include_directories(Hazel-App PRIVATE

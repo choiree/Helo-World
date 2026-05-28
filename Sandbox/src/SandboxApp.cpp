@@ -2,6 +2,7 @@
 #include <Hazel/Core/EntryPoint.h>
 
 #include "Sandbox2D.h"
+#include "SandboxGbaRoom.h"
 #include "ExampleLayer.h"
 #include "Test.h"
 
@@ -12,7 +13,8 @@ public:
 		: Hazel::Application(specification)
 	{
 		// PushLayer(new ExampleLayer());
-		PushLayer(new Sandbox2D());
+		// PushLayer(new Sandbox2D());
+		PushLayer(new SandboxGbaRoom());
 		//PushLayer(new TestLayer());
 	}
 
