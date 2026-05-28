@@ -8,9 +8,11 @@ namespace Hazel {
 	{
 	public:
 		const char* Name() const override { return "CameraSystem"; }
-		SystemStage Stage() const override { return SystemStage::PreRender; }
 
 		void Execute(entt::registry& registry, Timestep ts) override;
+
+		std::vector<const char*> Reads()  const override { return {"CameraComponent", "TransformComponent"}; }
+		std::vector<const char*> Writes() const override { return {"SceneRenderContext"}; }
 	};
 
 }

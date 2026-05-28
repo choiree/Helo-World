@@ -99,7 +99,7 @@ namespace Hazel {
 		std::ifstream file(filepath, std::ios::binary);
 		if (!file.is_open())
 		{
-			HZ_CORE_ERROR("Failed to open tileset file: {0}", filepath);
+			HZ_CORE_ERROR("Failed to open tileSet file: {0}", filepath);
 			return nullptr;
 		}
 
@@ -108,7 +108,7 @@ namespace Hazel {
 
 		if (!CheckMagic(header.magic, "TSET"))
 		{
-			HZ_CORE_ERROR("Invalid tileset magic in: {0}", filepath);
+			HZ_CORE_ERROR("Invalid tileSet magic in: {0}", filepath);
 			return nullptr;
 		}
 

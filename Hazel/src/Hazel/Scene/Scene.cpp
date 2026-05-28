@@ -31,6 +31,7 @@ namespace Hazel {
 		m_SystemGraph.AddSystem<CameraSystem>();
 		m_SystemGraph.AddSystem<RenderSystem2D>();
 		m_SystemGraph.Build();
+		m_SystemGraph.DebugDump();
 	}
 
 	Scene::~Scene()
@@ -173,44 +174,35 @@ namespace Hazel {
 
 	void Scene::OnUpdateRuntime(Timestep ts)
 	{
-		if (!m_IsPaused || m_StepFrames-- > 0)
-		{
-			m_SystemGraph.ExecuteStage(SystemStage::PreUpdate,   m_Registry, ts);
-			m_SystemGraph.ExecuteStage(SystemStage::Update,      m_Registry, ts);
-			m_SystemGraph.ExecuteStage(SystemStage::Physics,     m_Registry, ts);
-			m_SystemGraph.ExecuteStage(SystemStage::PostPhysics, m_Registry, ts);
-		}
-
-		// Render always runs (even when paused)
 		m_Registry.ctx().get<SceneRenderContext&>().UseEditorCamera = false;
-		m_SystemGraph.ExecuteStage(SystemStage::PreRender, m_Registry, ts);
-		m_SystemGraph.ExecuteStage(SystemStage::Render,    m_Registry, ts);
+
+		if (!m_IsPaused || m_StepFrames-- > 0)
+			m_SystemGraph.Execute(m_Registry, ts);
+		else
+			m_SystemGraph.Execute(m_Registry, ts, {"CameraSystem", "RenderSystem2D"});
 	}
 
 	void Scene::OnUpdateSimulation(Timestep ts, EditorCamera& camera)
 	{
 		if (!m_IsPaused || m_StepFrames-- > 0)
-		{
-			m_SystemGraph.ExecuteStage(SystemStage::Physics,     m_Registry, ts);
-			m_SystemGraph.ExecuteStage(SystemStage::PostPhysics, m_Registry, ts);
-		}
+			m_SystemGraph.Execute(m_Registry, ts, {"PhysicsSystem", "TransformSyncSystem"});
 
 		auto& ctx = m_Registry.ctx().get<SceneRenderContext&>();
 		ctx.UseEditorCamera = true;
 		ctx.EditorCamera = &camera;
 
-		m_SystemGraph.ExecuteStage(SystemStage::Render, m_Registry, ts);
+		m_SystemGraph.Execute(m_Registry, ts, {"RenderSystem2D"});
 	}
 
 	void Scene::OnUpdateEditor(Timestep ts, EditorCamera& camera)
 	{
-		m_SystemGraph.ExecuteStage(SystemStage::Update, m_Registry, ts);
+		m_SystemGraph.Execute(m_Registry, ts, {"AnimationSystem"});
 
 		auto& ctx = m_Registry.ctx().get<SceneRenderContext&>();
 		ctx.UseEditorCamera = true;
 		ctx.EditorCamera = &camera;
 
-		m_SystemGraph.ExecuteStage(SystemStage::Render, m_Registry, ts);
+		m_SystemGraph.Execute(m_Registry, ts, {"RenderSystem2D"});
 	}
 
 	void Scene::OnViewportResize(uint32_t width, uint32_t height)

@@ -3,6 +3,7 @@
 #include "Hazel/Scene/System.h"
 
 #include <array>
+#include <string_view>
 #include <vector>
 
 namespace Hazel {
@@ -18,7 +19,6 @@ namespace Hazel {
 			Ref<T> system = CreateRef<T>(std::forward<Args>(args)...);
 			T* ptr = system.get();
 			m_Systems.push_back(system);
-			m_SystemsByStage[(size_t)ptr->Stage()].push_back(ptr);
 			m_NeedsRebuild = true;
 			return ptr;
 		}
@@ -33,16 +33,19 @@ namespace Hazel {
 
 		void Build();
 
-		void ExecuteStage(SystemStage stage, entt::registry& registry, Timestep ts);
-
 		void Execute(entt::registry& registry, Timestep ts);
+
+		void Execute(entt::registry& registry, Timestep ts, std::initializer_list<const char*> filter);
 
 		void OnAttach(entt::registry& registry);
 		void OnDetach(entt::registry& registry);
 
+		// Dump dependency graph in Graphviz dot format
+		void DebugDump() const;
+
 	private:
 		std::vector<Ref<System>> m_Systems;
-		std::array<std::vector<System*>, (size_t)SystemStage::COUNT> m_SystemsByStage;
+		std::vector<std::vector<System*>> m_Levels;
 		bool m_NeedsRebuild = true;
 	};
 

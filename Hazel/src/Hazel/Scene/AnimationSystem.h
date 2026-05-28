@@ -12,11 +12,12 @@ namespace Hazel {
 	{
 	public:
 		const char* Name() const override { return "AnimationSystem"; }
-		SystemStage Stage() const override { return SystemStage::Update; }
 
 		void Execute(entt::registry& registry, Timestep ts) override;
 
-		// Utility helpers (called from editor, test code — operate on a single component)
+		std::vector<const char*> Reads()  const override { return {"SpriteAnimationComponent", "SpriteRendererComponent"}; }
+		std::vector<const char*> Writes() const override { return {"SpriteAnimationComponent", "SpriteRendererComponent"}; }
+
 		static void Play(SpriteAnimationComponent& anim, const std::string& name);
 		static void Stop(SpriteAnimationComponent& anim);
 		static void Pause(SpriteAnimationComponent& anim);

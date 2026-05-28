@@ -8,9 +8,11 @@ namespace Hazel {
 	{
 	public:
 		const char* Name() const override { return "TransformSyncSystem"; }
-		SystemStage Stage() const override { return SystemStage::PostPhysics; }
 
 		void Execute(entt::registry& registry, Timestep ts) override;
+
+		std::vector<const char*> Reads()  const override { return {"Rigidbody2DComponent"}; }
+		std::vector<const char*> Writes() const override { return {"TransformComponent"}; }
 	};
 
 }
